@@ -13,8 +13,9 @@
 // if in doubt, check the man page !
 
 const char PORT[5] = "3490";
-const int BACKLOG{10}; // max connections in queue
-const int YES{1};      // used as a boolean
+const int BACKLOG{10};      // max connections in queue
+const int YES{1};           // used as a boolean
+const int MAXDATASIZE{128}; // max number of bytes we can get at once
 
 void reap_dead_child_processes(int signal);
 void *get_in_addr(struct sockaddr *socket_address);
@@ -174,8 +175,23 @@ void reap_child_process_on_end() {
 }
 
 void handle_incoming_connection(int socket) {
+  char buffer[MAXDATASIZE];
+  int number_of_bytes;
+
   if (send(socket, "Hello world !", 13, 0) == -1) {
     perror("send");
   }
+
+  if ((number_of_bytes = recv(socket, buffer, MAXDATASIZE - 1, 0)) == -1) {
+    perror("recv");
+    return;
+  }
+  buffer[number_of_bytes] = '\0';
+  std::cout << "server: received " << buffer;
+
+  if (send(socket, "Hello dude !", 13, 0) == -1) {
+    perror("send");
+  }
+
   close(socket);
 }
