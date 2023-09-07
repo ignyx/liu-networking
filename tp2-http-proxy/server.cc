@@ -19,6 +19,7 @@ const int YES{1};      // used as a boolean
 void reap_dead_chil_processes(int signal);
 void *get_in_addr(struct sockaddr *socket_address);
 void bind_socket_to_address(int &listening_socket);
+void listen_to_socket(int listening_socket);
 
 int main() {
   int listening_socket;
@@ -32,14 +33,6 @@ int main() {
   std::cout << "Starting proxy server on port " << PORT << std::endl;
 
   bind_socket_to_address(listening_socket);
-
-  // Attempts to listen on socket
-  if (listen(listening_socket, BACKLOG) == -1) {
-    perror("listen");
-    exit(1);
-  }
-
-  // When child process is done, clean it
   // About SA_RESTART :
   // https://www.gnu.org/software/libc/manual/html_node/Flags-for-Sigaction.html
   signal_action.sa_handler =
@@ -51,6 +44,7 @@ int main() {
     perror("sigaction");
     exit(1);
   }
+  listen_to_socket(listening_socket);
 
   std::cout << "server: waiting for connections on port " << PORT << std::endl;
 
@@ -163,6 +157,13 @@ void bind_socket_to_address(int &listening_socket) {
 
   if (ip_addr == NULL) {
     std::cerr << "server: failed to bind to any available address" << std::endl;
+    exit(1);
+  }
+}
+
+void listen_to_socket(int listening_socket) {
+  if (listen(listening_socket, BACKLOG) == -1) {
+    perror("listen");
     exit(1);
   }
 }
