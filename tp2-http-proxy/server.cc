@@ -21,6 +21,7 @@ void *get_in_addr(struct sockaddr *socket_address);
 void bind_socket_to_address(int &listening_socket);
 void listen_to_socket(int listening_socket);
 void reap_child_process_on_end();
+void handle_incoming_connection(int socket);
 
 int main() {
   int listening_socket;
@@ -37,6 +38,7 @@ int main() {
 
   std::cout << "server: waiting for connections on port " << PORT << std::endl;
 
+  // Accept all connections
   while (1) {
     client_address_size = sizeof client_address;
     new_connection_socket =
@@ -57,10 +59,7 @@ int main() {
 
     if (!fork()) {             // Create child process
       close(listening_socket); // child doesn't need the listening_socket
-      if (send(new_connection_socket, "Hello world !", 13, 0) == -1) {
-        perror("send");
-      }
-      close(new_connection_socket);
+      handle_incoming_connection(new_connection_socket);
       exit(0);
     }
 
@@ -172,4 +171,11 @@ void reap_child_process_on_end() {
     perror("sigaction");
     exit(1);
   }
+}
+
+void handle_incoming_connection(int socket) {
+  if (send(socket, "Hello world !", 13, 0) == -1) {
+    perror("send");
+  }
+  close(socket);
 }
