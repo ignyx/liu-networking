@@ -16,35 +16,24 @@ const char PORT[5] = "3490";
 const int BACKLOG{10}; // max connections in queue
 const int YES{1};      // used as a boolean
 
-void reap_dead_chil_processes(int signal);
+void reap_dead_child_processes(int signal);
 void *get_in_addr(struct sockaddr *socket_address);
 void bind_socket_to_address(int &listening_socket);
 void listen_to_socket(int listening_socket);
+void reap_child_process_on_end();
 
 int main() {
   int listening_socket;
   int new_connection_socket;
   struct sockaddr_storage client_address;
   socklen_t client_address_size;
-  struct sigaction
-      signal_action; // same, might communicate signals with the kernel
   char client_address_chars[INET6_ADDRSTRLEN];
 
   std::cout << "Starting proxy server on port " << PORT << std::endl;
 
   bind_socket_to_address(listening_socket);
-  // About SA_RESTART :
-  // https://www.gnu.org/software/libc/manual/html_node/Flags-for-Sigaction.html
-  signal_action.sa_handler =
-      reap_dead_chil_processes;        // reap all dead processes
-  sigemptyset(&signal_action.sa_mask); // initializes the signal set to empty
-  signal_action.sa_flags = SA_RESTART;
-  // SIGCHLD is fired when a child process ends
-  if (sigaction(SIGCHLD, &signal_action, NULL)) {
-    perror("sigaction");
-    exit(1);
-  }
   listen_to_socket(listening_socket);
+  reap_child_process_on_end();
 
   std::cout << "server: waiting for connections on port " << PORT << std::endl;
 
@@ -81,7 +70,7 @@ int main() {
   return 0;
 }
 
-void reap_dead_chil_processes(int) {
+void reap_dead_child_processes(int) {
   // errno is the error number sent by system calls or libraries
   // in this case it might be overwritten by waitpid()
   int saved_errno = errno;
@@ -164,6 +153,23 @@ void bind_socket_to_address(int &listening_socket) {
 void listen_to_socket(int listening_socket) {
   if (listen(listening_socket, BACKLOG) == -1) {
     perror("listen");
+    exit(1);
+  }
+}
+
+void reap_child_process_on_end() {
+  struct sigaction signal_action; // used to communicate with the kernel
+
+  // When child process is done, clean it
+  // About SA_RESTART :
+  // https://www.gnu.org/software/libc/manual/html_node/Flags-for-Sigaction.html
+  signal_action.sa_handler =
+      reap_dead_child_processes;       // reap all dead processes
+  sigemptyset(&signal_action.sa_mask); // initializes the signal set to empty
+  signal_action.sa_flags = SA_RESTART;
+  // SIGCHLD is fired when a child process ends
+  if (sigaction(SIGCHLD, &signal_action, NULL)) {
+    perror("sigaction");
     exit(1);
   }
 }
