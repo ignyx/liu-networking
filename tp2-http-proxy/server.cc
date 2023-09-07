@@ -14,72 +14,24 @@
 
 const char PORT[5] = "3490";
 const int BACKLOG{10}; // max connections in queue
-                       //
-void sigchld_handler(int signal);
+const int YES{1};      // used as a boolean
+
+void reap_dead_chil_processes(int signal);
 void *get_in_addr(struct sockaddr *socket_address);
+void bind_socket_to_address(int &listening_socket);
 
 int main() {
   int listening_socket;
   int new_connection_socket;
-  struct addrinfo hints;
-  struct addrinfo *server_info;
-  struct addrinfo *ip_addr;
   struct sockaddr_storage client_address;
-  socklen_t client_address_size; // idk what this is
+  socklen_t client_address_size;
   struct sigaction
       signal_action; // same, might communicate signals with the kernel
-  int yes{1};        // because why not !
   char client_address_chars[INET6_ADDRSTRLEN];
-  int status;
-
-  memset(&hints, 0, sizeof hints); // overwrite hints with zeroes
-  hints.ai_family = AF_UNSPEC;     // IPv4 / IPv6 agnostic
-  hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-  hints.ai_flags = AI_PASSIVE;     // Automatically fill in IP
 
   std::cout << "Starting proxy server on port " << PORT << std::endl;
 
-  if ((status = getaddrinfo(NULL, PORT, &hints, &server_info)) != 0) {
-    std::cout << "getaddrinfo error :" << std::endl << gai_strerror(status);
-    return 1;
-  }
-
-  // loop through the available IP addresses and bind tothe first we can
-  for (ip_addr = server_info; ip_addr != NULL; ip_addr = ip_addr->ai_next) {
-    // Attempts to create a socket
-    if ((listening_socket = socket(ip_addr->ai_family, ip_addr->ai_socktype,
-                                   ip_addr->ai_protocol)) == -1) {
-      perror("server: socket");
-      continue;
-    }
-
-    // Attempts to enable the SO_REUSEADDR socket option
-    // SO_REUSEADDR allows the program to re-bind to the IP/PORT combo
-    // before the system assumes in-route packets have been dropped. See
-    // https://stackoverflow.com/questions/3229860/what-is-the-meaning-of-so-reuseaddr-setsockopt-option-linux
-    if (setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &yes,
-                   sizeof(int)) == -1) {
-      perror("setsockopt");
-      exit(1);
-    }
-
-    // Attempts to bind to the IP/PORT to the socket
-    if (bind(listening_socket, ip_addr->ai_addr, ip_addr->ai_addrlen) == -1) {
-      close(listening_socket);
-      perror("server: bind");
-      continue;
-    }
-
-    // socket successfully bound !
-    break;
-  }
-
-  freeaddrinfo(server_info);
-
-  if (ip_addr == NULL) {
-    std::cerr << "server: failed to bind to any available address" << std::endl;
-    exit(1);
-  }
+  bind_socket_to_address(listening_socket);
 
   // Attempts to listen on socket
   if (listen(listening_socket, BACKLOG) == -1) {
@@ -90,7 +42,8 @@ int main() {
   // When child process is done, clean it
   // About SA_RESTART :
   // https://www.gnu.org/software/libc/manual/html_node/Flags-for-Sigaction.html
-  signal_action.sa_handler = sigchld_handler; // reap all dead processes
+  signal_action.sa_handler =
+      reap_dead_chil_processes;        // reap all dead processes
   sigemptyset(&signal_action.sa_mask); // initializes the signal set to empty
   signal_action.sa_flags = SA_RESTART;
   // SIGCHLD is fired when a child process ends
@@ -134,7 +87,7 @@ int main() {
   return 0;
 }
 
-void sigchld_handler(int) {
+void reap_dead_chil_processes(int) {
   // errno is the error number sent by system calls or libraries
   // in this case it might be overwritten by waitpid()
   int saved_errno = errno;
@@ -156,5 +109,60 @@ void *get_in_addr(struct sockaddr *socket_address) {
   } else { // AF_INET6
     // IPv6
     return &(((struct sockaddr_in6 *)socket_address)->sin6_addr);
+  }
+}
+
+void bind_socket_to_address(int &listening_socket) {
+  struct addrinfo hints;
+  struct addrinfo *server_info;
+  struct addrinfo *ip_addr;
+  int status;
+
+  memset(&hints, 0, sizeof hints); // overwrite hints with zeroes
+  hints.ai_family = AF_UNSPEC;     // IPv4 / IPv6 agnostic
+  hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+  hints.ai_flags = AI_PASSIVE;     // Automatically fill in IP
+
+  // get info on available addresses
+  if ((status = getaddrinfo(NULL, PORT, &hints, &server_info)) != 0) {
+    std::cout << "getaddrinfo error :" << std::endl << gai_strerror(status);
+    exit(1);
+  }
+
+  // loop through the available IP addresses and bind tothe first we can
+  for (ip_addr = server_info; ip_addr != NULL; ip_addr = ip_addr->ai_next) {
+    // Attempts to create a socket
+    if ((listening_socket = socket(ip_addr->ai_family, ip_addr->ai_socktype,
+                                   ip_addr->ai_protocol)) == -1) {
+      perror("server: socket");
+      continue;
+    }
+
+    // Attempts to enable the SO_REUSEADDR socket option
+    // SO_REUSEADDR allows the program to re-bind to the IP/PORT combo
+    // before the system assumes in-route packets have been dropped. See
+    // https://stackoverflow.com/questions/3229860/what-is-the-meaning-of-so-reuseaddr-setsockopt-option-linux
+    if (setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &YES,
+                   sizeof(int)) == -1) {
+      perror("setsockopt");
+      exit(1);
+    }
+
+    // Attempts to bind to the IP/PORT to the socket
+    if (bind(listening_socket, ip_addr->ai_addr, ip_addr->ai_addrlen) == -1) {
+      close(listening_socket);
+      perror("server: bind");
+      continue;
+    }
+
+    // socket successfully bound !
+    break;
+  }
+
+  freeaddrinfo(server_info);
+
+  if (ip_addr == NULL) {
+    std::cerr << "server: failed to bind to any available address" << std::endl;
+    exit(1);
   }
 }
