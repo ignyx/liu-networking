@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
 
 // if in doubt, check the man page !
 
@@ -17,12 +18,14 @@ const int BACKLOG{10};      // max connections in queue
 const int YES{1};           // used as a boolean
 const int MAXDATASIZE{128}; // max number of bytes we can get at once
 
+struct http_request_heading;
 void reap_dead_child_processes(int signal);
 void *get_in_addr(struct sockaddr *socket_address);
 void bind_socket_to_address(int &listening_socket);
 void listen_to_socket(int listening_socket);
 void reap_child_process_on_end();
 void handle_incoming_connection(int socket);
+http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]);
 
 int main() {
   int listening_socket;
@@ -174,11 +177,18 @@ void reap_child_process_on_end() {
   }
 }
 
+struct http_request_heading {
+  std::string method;
+  std::string path;
+  std::vector<std::string> headers;
+};
+
 void handle_incoming_connection(int socket) {
   char buffer[MAXDATASIZE];
   int number_of_bytes;
+  http_request_heading heading;
 
-  if (send(socket, "Hello world !", 13, 0) == -1) {
+  if (send(socket, "HTTP/1.1 200 OK\n\nhi!", 20, 0) == -1) {
     perror("send");
   }
 
@@ -187,11 +197,48 @@ void handle_incoming_connection(int socket) {
     return;
   }
   buffer[number_of_bytes] = '\0';
-  std::cout << "server: received " << buffer;
+  std::cout << "server: received " << buffer << std::endl;
 
-  if (send(socket, "Hello dude !", 13, 0) == -1) {
+  if (send(socket, "Hello dude !", 12, 0) == -1) {
     perror("send");
   }
 
+  heading = parse_http_request_header(buffer);
+
+  std::cout << "Extracted method : " << heading.method << std::endl;
+  std::cout << "Extracted path   : " << heading.path << std::endl;
+
   close(socket);
+}
+
+http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]) {
+  int index{0};
+  int line{0};
+  int word{0};
+  int start_of_word{0};
+  http_request_heading heading;
+
+  while (buffer[index] != '\0') {
+    std::cout << "reading char : " << buffer[index] << std::endl;
+    if (buffer[index] == ' ') {
+      std::cout << "dans l'espace !" << std::endl;
+      // end of a word
+      if (line == 0 && word == 0) {
+        heading.method = std::string(buffer, index - start_of_word);
+        std::cout << "Method : " << heading.method << start_of_word << index
+                  << std::endl;
+      } else if (line == 0 && word == 1) {
+        heading.path =
+            std::string(buffer[start_of_word], index - start_of_word);
+      }
+      word++;
+      start_of_word = index + 1;
+    } else if (buffer[index] == '\n') {
+      word = 0;
+      start_of_word = 0;
+      line++;
+    }
+    index++;
+  }
+  return heading;
 }
