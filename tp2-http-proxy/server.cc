@@ -13,10 +13,10 @@
 
 // if in doubt, check the man page !
 
-const char PORT[5] = "3490";
-const int BACKLOG{10};       // max connections in queue
-const int YES{1};            // used as a boolean
-const int MAXDATASIZE{1028}; // max number of bytes we can get at once
+static const char PORT[5] = "3490";
+static const int BACKLOG{10};       // max connections in queue
+static const int YES{1};            // used as a boolean
+static const int MAXDATASIZE{1028}; // max number of bytes we can get at once
 
 struct http_request_heading;
 struct http_header;
@@ -28,6 +28,15 @@ void reap_child_process_on_end();
 void handle_incoming_connection(int socket);
 http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]);
 
+enum Log_Level {
+  DEBUG,
+  INFO,
+  WARNING,
+  ERROR // probably just crashes
+
+};
+static const Log_Level log_level = DEBUG;
+
 int main() {
   int listening_socket;
   int new_connection_socket;
@@ -35,13 +44,16 @@ int main() {
   socklen_t client_address_size;
   char client_address_chars[INET6_ADDRSTRLEN];
 
-  std::cout << "Starting proxy server on port " << PORT << std::endl;
+  if (log_level <= INFO)
+    std::cout << "Starting proxy server on port " << PORT << std::endl;
 
   bind_socket_to_address(listening_socket);
   listen_to_socket(listening_socket);
   reap_child_process_on_end();
 
-  std::cout << "server: waiting for connections on port " << PORT << std::endl;
+  if (log_level <= INFO)
+    std::cout << "server: waiting for connections on port " << PORT
+              << std::endl;
 
   // Accept all connections
   while (1) {
@@ -59,8 +71,10 @@ int main() {
               get_in_addr((struct sockaddr *)&client_address),
               client_address_chars, sizeof client_address_chars);
 
-    std::cout << "server: got connection from " << client_address_chars
-              << std::endl;
+    if (log_level <= INFO)
+      std::cout << "IN (socket " << new_connection_socket
+                << ") connection opened from " << client_address_chars
+                << std::endl;
 
     if (!fork()) {             // Create child process
       close(listening_socket); // child doesn't need the listening_socket
@@ -112,7 +126,8 @@ void bind_socket_to_address(int &listening_socket) {
 
   // get info on available addresses
   if ((status = getaddrinfo(NULL, PORT, &hints, &server_info)) != 0) {
-    std::cout << "getaddrinfo error :" << std::endl << gai_strerror(status);
+    if (log_level <= ERROR)
+      std::cout << "getaddrinfo error :" << std::endl << gai_strerror(status);
     exit(1);
   }
 
@@ -121,7 +136,8 @@ void bind_socket_to_address(int &listening_socket) {
     // Attempts to create a socket
     if ((listening_socket = socket(ip_addr->ai_family, ip_addr->ai_socktype,
                                    ip_addr->ai_protocol)) == -1) {
-      perror("server: socket");
+      if (log_level <= ERROR)
+        perror("server: socket");
       continue;
     }
 
@@ -131,14 +147,16 @@ void bind_socket_to_address(int &listening_socket) {
     // https://stackoverflow.com/questions/3229860/what-is-the-meaning-of-so-reuseaddr-setsockopt-option-linux
     if (setsockopt(listening_socket, SOL_SOCKET, SO_REUSEADDR, &YES,
                    sizeof(int)) == -1) {
-      perror("setsockopt");
+      if (log_level <= ERROR)
+        perror("setsockopt");
       exit(1);
     }
 
     // Attempts to bind to the IP/PORT to the socket
     if (bind(listening_socket, ip_addr->ai_addr, ip_addr->ai_addrlen) == -1) {
       close(listening_socket);
-      perror("server: bind");
+      if (log_level <= ERROR)
+        perror("server: bind");
       continue;
     }
 
@@ -149,14 +167,17 @@ void bind_socket_to_address(int &listening_socket) {
   freeaddrinfo(server_info);
 
   if (ip_addr == NULL) {
-    std::cerr << "server: failed to bind to any available address" << std::endl;
+    if (log_level <= ERROR)
+      std::cerr << "server: failed to bind to any available address"
+                << std::endl;
     exit(1);
   }
 }
 
 void listen_to_socket(int listening_socket) {
   if (listen(listening_socket, BACKLOG) == -1) {
-    perror("listen");
+    if (log_level <= ERROR)
+      perror("listen");
     exit(1);
   }
 }
@@ -173,7 +194,8 @@ void reap_child_process_on_end() {
   signal_action.sa_flags = SA_RESTART;
   // SIGCHLD is fired when a child process ends
   if (sigaction(SIGCHLD, &signal_action, NULL)) {
-    perror("sigaction");
+    if (log_level <= ERROR)
+      perror("sigaction");
     exit(1);
   }
 }
@@ -195,29 +217,41 @@ void handle_incoming_connection(int socket) {
   http_request_heading heading;
 
   if (send(socket, "HTTP/1.1 200 OK\n\nhi!", 20, 0) == -1) {
-    perror("send");
+    if (log_level <= ERROR)
+      perror("send");
   }
 
   if ((number_of_bytes = recv(socket, buffer, MAXDATASIZE - 1, 0)) == -1) {
-    perror("recv");
+    if (log_level <= ERROR)
+      perror("recv");
     return;
   }
   buffer[number_of_bytes] = '\0';
-  std::cout << "server: received " << buffer << std::endl;
+  if (log_level <= DEBUG)
+    std::cout << "server: received " << number_of_bytes << " bytes from socket "
+              << socket << std::endl;
 
   if (send(socket, "Hello dude !", 12, 0) == -1) {
-    perror("send");
+    if (log_level <= ERROR)
+      perror("send");
   }
 
   heading = parse_http_request_header(buffer);
 
-  std::cout << "Extracted method : " << heading.method << std::endl;
-  std::cout << "Extracted path   : " << heading.path << std::endl;
-  for (http_header header : heading.headers) {
-    std::cout << "Extracted header : " << header.name << ": " << header.value
-              << std::endl;
+  if (log_level <= DEBUG) {
+    std::cout << "Extracted method : " << heading.method << std::endl;
+    std::cout << "Extracted path   : " << heading.path << std::endl;
+    for (http_header header : heading.headers) {
+      std::cout << "Extracted header : " << header.name << ": " << header.value
+                << std::endl;
+    }
   }
+  if (log_level <= INFO)
+    std::cout << "IN (socket " << socket << ") " << heading.method << " "
+              << heading.path << std::endl;
 
+  if (log_level <= INFO)
+    std::cout << "IN (socket " << socket << ") connection closed" << std::endl;
   close(socket);
 }
 
@@ -232,7 +266,8 @@ http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]) {
 
   while (buffer[index] != '\0' && index < MAXDATASIZE) {
     // TODO skip body
-    std::cout << buffer[index];
+    if (log_level <= DEBUG)
+      std::cout << buffer[index];
     if (buffer[index] == ' ') {
       // end of a word
 
