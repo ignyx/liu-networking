@@ -14,11 +14,12 @@
 // if in doubt, check the man page !
 
 const char PORT[5] = "3490";
-const int BACKLOG{10};      // max connections in queue
-const int YES{1};           // used as a boolean
-const int MAXDATASIZE{128}; // max number of bytes we can get at once
+const int BACKLOG{10};       // max connections in queue
+const int YES{1};            // used as a boolean
+const int MAXDATASIZE{1028}; // max number of bytes we can get at once
 
 struct http_request_heading;
+struct http_header;
 void reap_dead_child_processes(int signal);
 void *get_in_addr(struct sockaddr *socket_address);
 void bind_socket_to_address(int &listening_socket);
@@ -177,10 +178,15 @@ void reap_child_process_on_end() {
   }
 }
 
+struct http_header {
+  std::string name;
+  std::string value;
+};
+
 struct http_request_heading {
   std::string method;
   std::string path;
-  std::vector<std::string> headers;
+  std::vector<http_header> headers;
 };
 
 void handle_incoming_connection(int socket) {
@@ -207,6 +213,10 @@ void handle_incoming_connection(int socket) {
 
   std::cout << "Extracted method : " << heading.method << std::endl;
   std::cout << "Extracted path   : " << heading.path << std::endl;
+  for (http_header header : heading.headers) {
+    std::cout << "Extracted header : " << header.name << ": " << header.value
+              << std::endl;
+  }
 
   close(socket);
 }
@@ -217,28 +227,43 @@ http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]) {
   int word{0};
   int start_of_word{0};
   http_request_heading heading;
+  http_header current_header;
+  static const http_header empty_header;
 
-  while (buffer[index] != '\0') {
-    std::cout << "reading char : " << buffer[index] << std::endl;
+  while (buffer[index] != '\0' && index < MAXDATASIZE) {
+    // TODO skip body
+    std::cout << buffer[index];
     if (buffer[index] == ' ') {
-      std::cout << "dans l'espace !" << std::endl;
       // end of a word
+
       if (line == 0 && word == 0) {
         heading.method = std::string(buffer, index - start_of_word);
-        std::cout << "Method : " << heading.method << start_of_word << index
-                  << std::endl;
       } else if (line == 0 && word == 1) {
         heading.path =
-            std::string(buffer[start_of_word], index - start_of_word);
+            std::string(buffer, start_of_word, index - start_of_word);
       }
       word++;
       start_of_word = index + 1;
+
+    } else if (buffer[index] == ':' && current_header.name == "") {
+      current_header.name =
+          std::string(buffer, start_of_word, index - start_of_word);
+    } else if (line >= 1 && current_header.name != "" &&
+               buffer[index] == '\r') {
+      current_header.value =
+          std::string(buffer, start_of_word, index - start_of_word);
+      heading.headers.push_back(current_header);
+      current_header = empty_header;
+
     } else if (buffer[index] == '\n') {
       word = 0;
-      start_of_word = 0;
       line++;
+      start_of_word = index + 1;
     }
     index++;
   }
+
+  std::cout << std::flush;
+
   return heading;
 }
