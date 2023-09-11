@@ -239,12 +239,13 @@ void handle_incoming_connection(int socket) {
   heading = parse_http_request_header(buffer);
 
   if (log_level <= DEBUG) {
-    std::cout << "Extracted method : " << heading.method << std::endl;
-    std::cout << "Extracted path   : " << heading.path << std::endl;
+    std::cout << "Extracted method : " << heading.method << "\n"
+              << "Extracted path   : " << heading.path << "\n";
     for (http_header header : heading.headers) {
       std::cout << "Extracted header : " << header.name << ": " << header.value
-                << std::endl;
+                << "\n";
     }
+    std::cout << std::flush;
   }
   if (log_level <= INFO)
     std::cout << "IN (socket " << socket << ") " << heading.method << " "
