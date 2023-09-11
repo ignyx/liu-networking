@@ -209,6 +209,7 @@ struct http_request_heading {
   std::string method;
   std::string path;
   std::vector<http_header> headers;
+  bool keep_alive;
 };
 
 void handle_incoming_connection(int socket) {
@@ -240,7 +241,8 @@ void handle_incoming_connection(int socket) {
 
   if (log_level <= DEBUG) {
     std::cout << "Extracted method : " << heading.method << "\n"
-              << "Extracted path   : " << heading.path << "\n";
+              << "Extracted path   : " << heading.path << "\n"
+              << "Keep-alive       : " << heading.keep_alive << "\n";
     for (http_header header : heading.headers) {
       std::cout << "Extracted header : " << header.name << ": " << header.value
                 << "\n";
@@ -262,6 +264,7 @@ http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]) {
   int word{0};
   int start_of_word{0};
   http_request_heading heading;
+  heading.keep_alive = false;
   http_header current_header;
   static const http_header empty_header;
 
@@ -288,6 +291,11 @@ http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]) {
                buffer[index] == '\r') {
       current_header.value =
           std::string(buffer, start_of_word, index - start_of_word);
+
+      if (current_header.name ==
+              "Connection" && // assume first letter of headers are capitalized
+          current_header.value == "keep-alive")
+        heading.keep_alive = true;
       heading.headers.push_back(current_header);
       current_header = empty_header;
 
