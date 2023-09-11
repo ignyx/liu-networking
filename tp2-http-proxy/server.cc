@@ -4,6 +4,7 @@
 #include <iostream>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -14,6 +15,7 @@
 // if in doubt, check the man page !
 
 static const char PORT[5] = "3490";
+// static const char PORT[5] = "3491";
 static const int BACKLOG{10};       // max connections in queue
 static const int YES{1};            // used as a boolean
 static const int MAXDATASIZE{1028}; // max number of bytes we can get at once
@@ -26,7 +28,9 @@ void bind_socket_to_address(int &listening_socket);
 void listen_to_socket(int listening_socket);
 void reap_child_process_on_end();
 void handle_incoming_connection(int socket);
-http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]);
+http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]);
+int await_request(int socket);
+int read_request(int socket, char buffer[MAXDATASIZE]);
 
 enum Log_Level {
   DEBUG,
@@ -214,51 +218,54 @@ struct http_request_heading {
 
 void handle_incoming_connection(int socket) {
   char buffer[MAXDATASIZE];
-  int number_of_bytes;
   http_request_heading heading;
+  bool timed_out{false};
+
+  while (!timed_out) {
+    if (await_request(socket)) {
+      if (read_request(socket, buffer)) {
+        heading = parse_http_request_header(buffer);
+
+        if (log_level <= INFO)
+          std::cout << "IN (socket " << socket << ") " << heading.method << " "
+                    << heading.path << std::endl;
+      } else {
+        // POLLIN event + no bytes read means remote closed connection.
+        if (log_level <= INFO)
+          std::cout << "IN (socket " << socket
+                    << ") connection closed (remote closed connection)"
+                    << std::endl;
+        close(socket);
+
+        return;
+      }
+
+    } else {
+      timed_out = true;
+
+      if (log_level <= INFO)
+        std::cout << "IN (socket " << socket
+                  << ") connection closed (timed out)" << std::endl;
+      close(socket);
+    }
+  }
 
   if (send(socket, "HTTP/1.1 200 OK\n\nhi!", 20, 0) == -1) {
     if (log_level <= ERROR)
       perror("send");
   }
 
-  if ((number_of_bytes = recv(socket, buffer, MAXDATASIZE - 1, 0)) == -1) {
-    if (log_level <= ERROR)
-      perror("recv");
-    return;
-  }
-  buffer[number_of_bytes] = '\0';
-  if (log_level <= DEBUG)
-    std::cout << "server: received " << number_of_bytes << " bytes from socket "
-              << socket << std::endl;
-
   if (send(socket, "Hello dude !", 12, 0) == -1) {
     if (log_level <= ERROR)
       perror("send");
   }
-
-  heading = parse_http_request_header(buffer);
-
-  if (log_level <= DEBUG) {
-    std::cout << "Extracted method : " << heading.method << "\n"
-              << "Extracted path   : " << heading.path << "\n"
-              << "Keep-alive       : " << heading.keep_alive << "\n";
-    for (http_header header : heading.headers) {
-      std::cout << "Extracted header : " << header.name << ": " << header.value
-                << "\n";
-    }
-    std::cout << std::flush;
-  }
-  if (log_level <= INFO)
-    std::cout << "IN (socket " << socket << ") " << heading.method << " "
-              << heading.path << std::endl;
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << socket << ") connection closed" << std::endl;
   close(socket);
 }
 
-http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]) {
+http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
   int index{0};
   int line{0};
   int word{0};
@@ -307,7 +314,54 @@ http_request_heading parse_http_request_header(char buffer[MAXDATASIZE]) {
     index++;
   }
 
+  if (log_level <= DEBUG) {
+    std::cout << "Extracted method : " << heading.method << "\n"
+              << "Extracted path   : " << heading.path << "\n"
+              << "Keep-alive       : " << heading.keep_alive << "\n";
+    for (http_header header : heading.headers) {
+      std::cout << "Extracted header : " << header.name << ": " << header.value
+                << "\n";
+    }
+  }
+
   std::cout << std::flush;
 
   return heading;
+}
+
+int await_request(int socket) {
+  struct pollfd file_descriptor[1];
+  file_descriptor[0].fd = socket;
+  file_descriptor[0].events = POLLIN;
+  int poll_response;
+
+  if (log_level == DEBUG)
+    std::cout << "IN (socket " << socket << ") polling..." << std::endl;
+
+  // listen to events on 1 socket with a timeout of 10 000 ms
+  // 0 means the request timed out
+  poll_response = poll(file_descriptor, 1, 10000);
+
+  if (log_level == DEBUG)
+    std::cout << "IN (socket " << socket << ") polled with response "
+              << poll_response << std::endl;
+
+  return poll_response;
+}
+
+int read_request(int socket, char buffer[MAXDATASIZE]) {
+  int number_of_bytes;
+
+  if ((number_of_bytes = recv(socket, buffer, MAXDATASIZE - 1, 0)) == -1) {
+    if (log_level <= ERROR)
+      perror("recv");
+    return 0;
+  }
+  buffer[number_of_bytes] = '\0';
+
+  if (log_level <= DEBUG)
+    std::cout << "server: received " << number_of_bytes << " bytes from socket "
+              << socket << std::endl;
+
+  return number_of_bytes;
 }
