@@ -302,6 +302,7 @@ http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
 
       if (current_header.name ==
               "Connection" && // assume first letter of headers are capitalized
+                              // against RFC
           current_header.value == "keep-alive")
         heading.keep_alive = true;
       heading.headers.push_back(current_header);
