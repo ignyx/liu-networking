@@ -32,6 +32,7 @@ http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]);
 int await_request(int socket);
 int read_request(int socket, char buffer[MAXDATASIZE]);
 int open_client_socket(char web_address[]);
+void to_lowercase(std::string &string);
 
 enum Log_Level {
   DEBUG,
@@ -418,4 +419,11 @@ int open_client_socket(char web_address[]) {
   freeaddrinfo(server_info);
 
   return client_socket;
+}
+
+void to_lowercase(std::string &string) {
+  for (unsigned int index; index < string.length(); index++) {
+    if (isupper(string[index]))
+      string[index] = tolower(string[index]);
+  }
 }
