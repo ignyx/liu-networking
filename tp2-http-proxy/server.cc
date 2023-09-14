@@ -31,6 +31,7 @@ void handle_incoming_connection(int socket);
 http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]);
 int await_request(int socket);
 int read_request(int socket, char buffer[MAXDATASIZE]);
+int open_client_socket(char web_address[]);
 
 enum Log_Level {
   DEBUG,
@@ -366,4 +367,55 @@ int read_request(int socket, char buffer[MAXDATASIZE]) {
               << socket << std::endl;
 
   return number_of_bytes;
+}
+
+int open_client_socket(char web_address[]) {
+  int client_socket;
+  struct addrinfo hints;
+  struct addrinfo *server_info;
+  struct addrinfo *ip_addr;
+  int status;
+  char server_ip_address[INET6_ADDRSTRLEN];
+
+  memset(&hints, 0, sizeof hints); // overwrite hints with zeroes
+  hints.ai_family = AF_UNSPEC;     // IPv4 / IPv6 agnostic
+  hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+
+  // get info on available addresses
+  if ((status = getaddrinfo(web_address, "80", &hints, &server_info)) != 0) {
+    if (log_level <= ERROR)
+      std::cout << "client getaddrinfo error :" << std::endl
+                << gai_strerror(status);
+    return -1;
+  }
+
+  // loop through the available IP addresses and bind tothe first we can
+  for (ip_addr = server_info; ip_addr != NULL; ip_addr = ip_addr->ai_next) {
+    // Attempts to create a socket
+    if ((client_socket = socket(ip_addr->ai_family, ip_addr->ai_socktype,
+                                ip_addr->ai_protocol)) == -1) {
+      if (log_level <= ERROR)
+        perror("client: socket");
+      continue;
+    }
+
+    if (connect(client_socket, ip_addr->ai_addr, ip_addr->ai_addrlen) == -1) {
+      close(client_socket);
+      perror("client: connect");
+      continue;
+    }
+
+    // socket successfully bound !
+    break;
+  }
+
+  // get server IP address string
+  inet_ntop(ip_addr->ai_family,
+            get_in_addr((struct sockaddr *)ip_addr->ai_addr), server_ip_address,
+            sizeof server_ip_address);
+  std::cout << "client: connecting to " << server_ip_address << std::endl;
+
+  freeaddrinfo(server_info);
+
+  return client_socket;
 }
