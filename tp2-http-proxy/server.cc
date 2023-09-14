@@ -231,6 +231,7 @@ void handle_incoming_connection(int socket) {
                     << heading.path << std::endl;
       } else {
         // POLLIN event + no bytes read means remote closed connection.
+        // https://stackoverflow.com/questions/63101815/pollin-event-on-tcp-socket-but-no-data-to-read
         if (log_level <= INFO)
           std::cout << "IN (socket " << socket
                     << ") connection closed (remote closed connection)"
