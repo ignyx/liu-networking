@@ -2,11 +2,9 @@
 #include <csignal>
 #include <cstring>
 #include <iostream>
-#include <map>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
-#include <queue>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -21,7 +19,6 @@ static const char PORT[5] = "3490";
 static const int BACKLOG{10};       // max connections in queue
 static const int YES{1};            // used as a boolean
 static const int MAXDATASIZE{1028}; // max number of bytes we can get at once
-static const int TIMEOUT_SECONDS{15};
 
 struct http_request_heading;
 struct http_header;
@@ -36,8 +33,6 @@ int await_request(int socket);
 int read_request(int socket, char buffer[MAXDATASIZE]);
 int open_client_socket(char web_address[]);
 void to_lowercase(std::string &string);
-int await_response(int socket, int timeout = 10000);
-void forward_response_to_client(int server_socket, int client_socket);
 
 enum Log_Level {
   DEBUG,
@@ -224,31 +219,13 @@ struct http_request_heading {
   bool keep_alive;
 };
 
-struct client_connection {
-  int socket;
-  time_t last_seen;
-};
-
 void handle_incoming_connection(int socket) {
   char buffer[MAXDATASIZE];
   http_request_heading heading;
   bool timed_out{false};
-  std::map<std::string, client_connection> hostname_to_socket;
-  std::queue<client_connection>
-      request_queue; // stores the sockets from which to send content
-  time_t last_seen = time(NULL);
-  time_t current_time = time(NULL);
 
-  while (current_time - last_seen < TIMEOUT_SECONDS) {
-    if (request_queue.size() > 0) {
-      client_connection connection = request_queue.front();
-      if (await_response(connection.socket)) {
-        forward_response_to_client(connection.socket, socket);
-        connection.last_seen = time(NULL);
-      }
-    }
+  while (!timed_out) {
     if (await_request(socket)) {
-      last_seen = time(NULL);
       if (read_request(socket, buffer)) {
         heading = parse_http_request_header(buffer);
 
@@ -277,15 +254,15 @@ void handle_incoming_connection(int socket) {
     }
   }
 
-  // if (send(socket, "HTTP/1.1 200 OK\n\nhi!", 20, 0) == -1) {
-  //   if (log_level <= ERROR)
-  //     perror("send");
-  // }
-  //
-  // if (send(socket, "Hello dude !", 12, 0) == -1) {
-  //   if (log_level <= ERROR)
-  //     perror("send");
-  // }
+  if (send(socket, "HTTP/1.1 200 OK\n\nhi!", 20, 0) == -1) {
+    if (log_level <= ERROR)
+      perror("send");
+  }
+
+  if (send(socket, "Hello dude !", 12, 0) == -1) {
+    if (log_level <= ERROR)
+      perror("send");
+  }
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << socket << ") connection closed" << std::endl;
@@ -339,7 +316,6 @@ http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
       word = 0;
       line++;
       start_of_word = index + 1;
-      current_header.name = "";
     }
     index++;
   }
@@ -360,7 +336,7 @@ http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
   return heading;
 }
 
-int await_request(int socket, int timeout = 10000) {
+int await_request(int socket) {
   struct pollfd file_descriptor[1];
   file_descriptor[0].fd = socket;
   file_descriptor[0].events = POLLIN;
@@ -369,9 +345,9 @@ int await_request(int socket, int timeout = 10000) {
   if (log_level == DEBUG)
     std::cout << "IN (socket " << socket << ") polling..." << std::endl;
 
-  // listen to events on 1 socket with a default timeout of 10 000 ms
+  // listen to events on 1 socket with a timeout of 10 000 ms
   // 0 means the request timed out
-  poll_response = poll(file_descriptor, 1, timeout);
+  poll_response = poll(file_descriptor, 1, 10000);
 
   if (log_level == DEBUG)
     std::cout << "IN (socket " << socket << ") polled with response "
@@ -454,25 +430,3 @@ void to_lowercase(std::string &string) {
       string[index] = tolower(string[index]);
   }
 }
-
-int await_response(int socket, int timeout) {
-  struct pollfd file_descriptor[1];
-  file_descriptor[0].fd = socket;
-  file_descriptor[0].events = POLLIN;
-  int poll_response;
-
-  if (log_level == DEBUG)
-    std::cout << "OUT (socket " << socket << ") polling..." << std::endl;
-
-  // listen to events on 1 socket with a default timeout of 10 000 ms
-  // 0 means the request timed out
-  poll_response = poll(file_descriptor, 1, timeout);
-
-  if (log_level == DEBUG)
-    std::cout << "OUT (socket " << socket << ") polled with response "
-              << poll_response << std::endl;
-
-  return poll_response;
-}
-
-void forward_response_to_client(int server_socket, int client_socket) {}
