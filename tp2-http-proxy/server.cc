@@ -23,6 +23,7 @@ static const int TIMEOUT_SECONDS{15};
 
 struct http_request_heading;
 struct http_header;
+struct client_connection;
 void reap_dead_child_processes(int signal);
 void *get_in_addr(struct sockaddr *socket_address);
 void bind_socket_to_address(int &listening_socket);
@@ -35,6 +36,7 @@ int read_request(int socket, char buffer[MAXDATASIZE]);
 int open_client_socket(char web_address[]);
 void to_lowercase(std::string &string);
 int await_response(int socket, int timeout = 10000);
+int handle_incoming_request(client_connection &client);
 
 enum Log_Level {
   DEBUG,
@@ -100,7 +102,8 @@ void reap_dead_child_processes(int) {
   // errno is the error number sent by system calls or libraries
   // in this case it might be overwritten by waitpid()
   int saved_errno = errno;
-  // WNOHANG option prevents waitpid() from blocking, we have other things to do
+  // WNOHANG option prevents waitpid() from blocking, we have other things to
+  // do
   // https://stackoverflow.com/questions/33508997/waitpid-wnohang-wuntraced-how-do-i-use-these
   //
   // reap dead child processes
@@ -221,19 +224,19 @@ struct http_request_heading {
   bool keep_alive;
 };
 
+struct client_connection {
+  int client_socket;
+  int open_server_socket;
+};
+
 void handle_incoming_connection(int socket) {
-  char buffer[MAXDATASIZE];
-  http_request_heading heading;
-  bool timed_out{false};
+  client_connection client;
+  client.client_socket = socket;
+  bool client_timed_out{false};
 
-  while (!timed_out) {
+  while (!client_timed_out) {
     if (await_request(socket)) {
-      if (read_request(socket, buffer)) {
-        heading = parse_http_request_header(buffer);
-
-        if (log_level <= INFO)
-          std::cout << "IN (socket " << socket << ") " << heading.method << " "
-                    << heading.path << std::endl;
+      if (handle_incoming_request(client)) {
       } else {
         // POLLIN event + no bytes read means remote closed connection.
         // https://stackoverflow.com/questions/63101815/pollin-event-on-tcp-socket-but-no-data-to-read
@@ -247,7 +250,7 @@ void handle_incoming_connection(int socket) {
       }
 
     } else {
-      timed_out = true;
+      client_timed_out = true;
 
       if (log_level <= INFO)
         std::cout << "IN (socket " << socket
@@ -387,12 +390,14 @@ int open_client_socket(char web_address[]) {
   memset(&hints, 0, sizeof hints); // overwrite hints with zeroes
   hints.ai_family = AF_UNSPEC;     // IPv4 / IPv6 agnostic
   hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+                                   //
+  std::cout << web_address << std::endl;
 
   // get info on available addresses
   if ((status = getaddrinfo(web_address, "80", &hints, &server_info)) != 0) {
     if (log_level <= ERROR)
-      std::cout << "client getaddrinfo error :" << std::endl
-                << gai_strerror(status);
+      std::cout << "client getaddrinfo error : \n"
+                << gai_strerror(status) << std::endl;
     return -1;
   }
 
@@ -406,7 +411,14 @@ int open_client_socket(char web_address[]) {
       continue;
     }
 
+    // get server IP address string
+    inet_ntop(ip_addr->ai_family,
+              get_in_addr((struct sockaddr *)ip_addr->ai_addr),
+              server_ip_address, sizeof server_ip_address);
+    std::cout << "client: connecting to " << server_ip_address << std::endl;
+
     if (connect(client_socket, ip_addr->ai_addr, ip_addr->ai_addrlen) == -1) {
+      std::cout << "client connect ip: " << server_ip_address << std::endl;
       close(client_socket);
       perror("client: connect");
       continue;
@@ -415,12 +427,6 @@ int open_client_socket(char web_address[]) {
     // socket successfully bound !
     break;
   }
-
-  // get server IP address string
-  inet_ntop(ip_addr->ai_family,
-            get_in_addr((struct sockaddr *)ip_addr->ai_addr), server_ip_address,
-            sizeof server_ip_address);
-  std::cout << "client: connecting to " << server_ip_address << std::endl;
 
   freeaddrinfo(server_info);
 
@@ -454,3 +460,36 @@ int await_response(int socket, int timeout) {
   return poll_response;
 }
 
+int handle_incoming_request(client_connection &client) {
+  char buffer[MAXDATASIZE];
+  http_request_heading heading;
+
+  if (read_request(client.client_socket, buffer)) {
+
+    heading = parse_http_request_header(buffer);
+
+    // Assume hostname is provided in Host header
+
+    char *hostname = new char[heading.hostname.length() + 1];
+    strcpy(hostname,
+           heading.hostname.c_str()); // vulnerable if null byte in string
+
+    client.open_server_socket = open_client_socket(hostname);
+
+    if (send(client.open_server_socket, "HTTP/1.1 200 OK\n\nhi!", 20, 0) ==
+        -1) {
+      if (log_level <= ERROR)
+        perror("send");
+    }
+
+    if (log_level <= INFO)
+      std::cout << "IN (socket " << client.client_socket << ") "
+                << heading.method << " " << heading.path << std::endl;
+
+    delete[] hostname; // free memory
+
+    return 0;
+  }
+
+  return 1;
+}
