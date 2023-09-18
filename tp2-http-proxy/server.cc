@@ -19,6 +19,7 @@ static const char PORT[5] = "3490";
 static const int BACKLOG{10};       // max connections in queue
 static const int YES{1};            // used as a boolean
 static const int MAXDATASIZE{1028}; // max number of bytes we can get at once
+static const int TIMEOUT_SECONDS{15};
 
 struct http_request_heading;
 struct http_header;
@@ -33,6 +34,7 @@ int await_request(int socket);
 int read_request(int socket, char buffer[MAXDATASIZE]);
 int open_client_socket(char web_address[]);
 void to_lowercase(std::string &string);
+int await_response(int socket, int timeout = 10000);
 
 enum Log_Level {
   DEBUG,
@@ -316,6 +318,7 @@ http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
       word = 0;
       line++;
       start_of_word = index + 1;
+      current_header.name = "";
     }
     index++;
   }
@@ -430,3 +433,24 @@ void to_lowercase(std::string &string) {
       string[index] = tolower(string[index]);
   }
 }
+
+int await_response(int socket, int timeout) {
+  struct pollfd file_descriptor[1];
+  file_descriptor[0].fd = socket;
+  file_descriptor[0].events = POLLIN;
+  int poll_response;
+
+  if (log_level == DEBUG)
+    std::cout << "OUT (socket " << socket << ") polling..." << std::endl;
+
+  // listen to events on 1 socket with a default timeout of 10 000 ms
+  // 0 means the request timed out
+  poll_response = poll(file_descriptor, 1, timeout);
+
+  if (log_level == DEBUG)
+    std::cout << "OUT (socket " << socket << ") polled with response "
+              << poll_response << std::endl;
+
+  return poll_response;
+}
+
