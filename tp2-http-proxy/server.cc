@@ -468,32 +468,31 @@ int handle_incoming_request(client_connection &client) {
   char buffer[MAXDATASIZE];
   http_request_heading heading;
 
-  if (read_request(client.client_socket, buffer)) {
-
-    heading = parse_http_request_header(buffer);
-
-    // Assume hostname is provided in Host header
-
-    char *hostname = new char[heading.hostname.length() + 1];
-    strcpy(hostname,
-           heading.hostname.c_str()); // vulnerable if null byte in string
-
-    client.open_server_socket = open_client_socket(hostname);
-
-    // forward request
-    send_string(client.open_server_socket,
-                get_http_request_headers_string(heading));
-
-    if (log_level <= INFO)
-      std::cout << "IN (socket " << client.client_socket << ") "
-                << heading.method << " " << heading.path << std::endl;
-
-    delete[] hostname; // free memory
-
-    return 0;
+  if (!read_request(client.client_socket, buffer)) {
+    return -1;
   }
 
-  return 1;
+  heading = parse_http_request_header(buffer);
+
+  // Assume hostname is provided in Host header
+
+  char *hostname = new char[heading.hostname.length() + 1];
+  strcpy(hostname,
+         heading.hostname.c_str()); // vulnerable if null byte in string
+
+  client.open_server_socket = open_client_socket(hostname);
+
+  // forward request
+  send_string(client.open_server_socket,
+              get_http_request_headers_string(heading));
+
+  if (log_level <= INFO)
+    std::cout << "IN (socket " << client.client_socket << ") " << heading.method
+              << " " << heading.path << std::endl;
+
+  delete[] hostname; // free memory
+
+  return 0;
 }
 
 std::string get_http_request_headers_string(http_request_heading heading) {
