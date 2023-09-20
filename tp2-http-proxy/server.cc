@@ -24,6 +24,7 @@ static const int TIMEOUT_SECONDS{15};
 struct http_request_heading;
 struct http_header;
 struct client_connection;
+struct http_response;
 void reap_dead_child_processes(int signal);
 void *get_in_addr(struct sockaddr *socket_address);
 void bind_socket_to_address(int &listening_socket);
@@ -39,6 +40,7 @@ int await_response(int socket, int timeout = 10000);
 int handle_incoming_request(client_connection &client);
 std::string get_http_request_headers_string(http_request_heading heading);
 int send_string(int socket, std::string string);
+http_response parse_http_response_header(const char buffer[MAXDATASIZE]);
 
 enum Log_Level {
   DEBUG,
@@ -401,7 +403,7 @@ int open_client_socket(std::string web_address) {
   hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
 
   // get info on available addresses
-  if ((status = getaddrinfo(hostname, "8000", &hints, &server_info)) != 0) {
+  if ((status = getaddrinfo(hostname, "80", &hints, &server_info)) != 0) {
     if (log_level <= ERROR)
       std::cout << "client getaddrinfo error : \n"
                 << gai_strerror(status) << std::endl;
@@ -468,9 +470,19 @@ int await_response(int socket, int timeout) {
   return poll_response;
 }
 
+struct http_response {
+  std::string status_code;
+  std::vector<http_header> headers;
+  bool keep_alive;
+  unsigned long int content_length;
+  unsigned int body_start;
+  char (*body)[]; // declare body as pointer to char[]
+};
+
 int handle_incoming_request(client_connection &client) {
   char buffer[MAXDATASIZE];
   http_request_heading heading;
+  http_response response;
 
   if (!read_request(client.client_socket, buffer)) {
     return -1;
@@ -485,6 +497,20 @@ int handle_incoming_request(client_connection &client) {
   // forward request, assume GET request
   send_string(client.open_server_socket,
               get_http_request_headers_string(heading));
+
+  // handle first packet
+  if (await_response(client.open_server_socket) == 0) {
+    // timeout TODO
+    return -1;
+  }
+
+  if (!read_request(client.open_server_socket, buffer)) {
+    return -1;
+  }
+
+  response = parse_http_response_header(buffer);
+
+  // while (await_request(client.open_server_socket))
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << client.client_socket << ") " << heading.method
@@ -538,4 +564,75 @@ int send_string(int socket, std::string string) {
   delete[] content; // free memory
 
   return result;
+}
+
+http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
+  int index{0};
+  int line{0};
+  int word{0};
+  int start_of_word{0};
+  http_response response;
+  response.keep_alive = false;
+  http_header current_header;
+  static const http_header empty_header;
+  bool done{false};
+
+  while (!done and buffer[index] != '\0' and index < MAXDATASIZE) {
+    // TODO skip body
+    if (log_level <= DEBUG)
+      std::cout << buffer[index];
+    if (buffer[index] == ' ') {
+      // end of a word
+
+      if (line == 0 && word == 1) {
+        response.status_code = std::string(buffer, index - start_of_word);
+      }
+      word++;
+      start_of_word = index + 1;
+
+    } else if (buffer[index] == ':' && current_header.name == "") {
+      current_header.name =
+          std::string(buffer, start_of_word, index - start_of_word);
+      to_lowercase(current_header.name);
+    } else if (line >= 1 && current_header.name != "" &&
+               buffer[index] == '\r') {
+      current_header.value =
+          std::string(buffer, start_of_word, index - start_of_word);
+
+      if (current_header.name == "connection" &&
+          current_header.value == "keep-alive")
+        response.keep_alive = true;
+      if (current_header.name == "content-length")
+        response.content_length = stoi(current_header.value);
+      response.headers.push_back(current_header);
+      current_header = empty_header;
+
+    } else if (buffer[index] == '\n') {
+      if (word == 0) {
+        // empty line => body starts on next line
+        done = true;
+        response.body_start = index + 1;
+      }
+      word = 0;
+      line++;
+      start_of_word = index + 1;
+      current_header.name = "";
+    }
+    index++;
+  }
+
+  if (log_level <= DEBUG) {
+    std::cout << "Extracted status : " << response.status_code << "\n"
+              << "Keep-alive       : " << response.keep_alive << "\n"
+              << "Body start       : " << response.body_start << "\n"
+              << "Content-length   : " << response.content_length << "\n";
+    for (http_header header : response.headers) {
+      std::cout << "Extracted header : " << header.name << ": " << header.value
+                << "\n";
+    }
+  }
+
+  std::cout << std::flush;
+
+  return response;
 }
