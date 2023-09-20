@@ -33,7 +33,7 @@ void handle_incoming_connection(int socket);
 http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]);
 int await_request(int socket);
 int read_request(int socket, char buffer[MAXDATASIZE]);
-int open_client_socket(char web_address[]);
+int open_client_socket(std::string web_address);
 void to_lowercase(std::string &string);
 int await_response(int socket, int timeout = 10000);
 int handle_incoming_request(client_connection &client);
@@ -383,7 +383,7 @@ int read_request(int socket, char buffer[MAXDATASIZE]) {
   return number_of_bytes;
 }
 
-int open_client_socket(char web_address[]) {
+int open_client_socket(std::string web_address) {
   int client_socket;
   struct addrinfo hints;
   struct addrinfo *server_info;
@@ -391,14 +391,17 @@ int open_client_socket(char web_address[]) {
   int status;
   char server_ip_address[INET6_ADDRSTRLEN];
 
+  // convert string to char[]
+  char *hostname = new char[web_address.length() + 1];
+  strcpy(hostname,
+         web_address.c_str()); // vulnerable if null byte in string
+
   memset(&hints, 0, sizeof hints); // overwrite hints with zeroes
   hints.ai_family = AF_UNSPEC;     // IPv4 / IPv6 agnostic
   hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-                                   //
-  std::cout << web_address << std::endl;
 
   // get info on available addresses
-  if ((status = getaddrinfo(web_address, "80", &hints, &server_info)) != 0) {
+  if ((status = getaddrinfo(hostname, "8000", &hints, &server_info)) != 0) {
     if (log_level <= ERROR)
       std::cout << "client getaddrinfo error : \n"
                 << gai_strerror(status) << std::endl;
@@ -433,6 +436,7 @@ int open_client_socket(char web_address[]) {
   }
 
   freeaddrinfo(server_info);
+  delete[] hostname; // free memory
 
   return client_socket;
 }
@@ -476,21 +480,15 @@ int handle_incoming_request(client_connection &client) {
 
   // Assume hostname is provided in Host header
 
-  char *hostname = new char[heading.hostname.length() + 1];
-  strcpy(hostname,
-         heading.hostname.c_str()); // vulnerable if null byte in string
+  client.open_server_socket = open_client_socket(heading.hostname);
 
-  client.open_server_socket = open_client_socket(hostname);
-
-  // forward request
+  // forward request, assume GET request
   send_string(client.open_server_socket,
               get_http_request_headers_string(heading));
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << client.client_socket << ") " << heading.method
               << " " << heading.path << std::endl;
-
-  delete[] hostname; // free memory
 
   return 0;
 }
