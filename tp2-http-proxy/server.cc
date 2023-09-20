@@ -37,6 +37,8 @@ int open_client_socket(char web_address[]);
 void to_lowercase(std::string &string);
 int await_response(int socket, int timeout = 10000);
 int handle_incoming_request(client_connection &client);
+std::string get_http_request_headers_string(http_request_heading heading);
+int send_string(int socket, std::string string);
 
 enum Log_Level {
   DEBUG,
@@ -237,6 +239,7 @@ void handle_incoming_connection(int socket) {
   while (!client_timed_out) {
     if (await_request(socket)) {
       if (handle_incoming_request(client)) {
+        continue;
       } else {
         // POLLIN event + no bytes read means remote closed connection.
         // https://stackoverflow.com/questions/63101815/pollin-event-on-tcp-socket-but-no-data-to-read
@@ -313,7 +316,8 @@ http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
           current_header.value == "keep-alive")
         heading.keep_alive = true;
       if (current_header.name == "host")
-        heading.hostname = current_header.value;
+        heading.hostname =
+            current_header.value.substr(0, current_header.value.find(':'));
       heading.headers.push_back(current_header);
       current_header = empty_header;
 
@@ -476,11 +480,9 @@ int handle_incoming_request(client_connection &client) {
 
     client.open_server_socket = open_client_socket(hostname);
 
-    if (send(client.open_server_socket, "HTTP/1.1 200 OK\n\nhi!", 20, 0) ==
-        -1) {
-      if (log_level <= ERROR)
-        perror("send");
-    }
+    // forward request
+    send_string(client.open_server_socket,
+                get_http_request_headers_string(heading));
 
     if (log_level <= INFO)
       std::cout << "IN (socket " << client.client_socket << ") "
@@ -492,4 +494,51 @@ int handle_incoming_request(client_connection &client) {
   }
 
   return 1;
+}
+
+std::string get_http_request_headers_string(http_request_heading heading) {
+  std::string request{"GET " + heading.path + " HTTP/1.1\r\n"};
+  for (http_header header : heading.headers)
+    request += header.name + ": " + header.value + "\r\n";
+
+  request += "\r\n\r\n";
+
+  return request;
+}
+
+int send_string(int socket, std::string string) {
+  int result;
+  int packet_payload_length;
+
+  // convert string to char[]
+  char *content = new char[string.length()];
+  strcpy(content,
+         string.c_str()); // vulnerable if null byte in string
+
+  if (log_level <= DEBUG)
+    std::cout << "OUT (socket " << socket << ") sending payload :\n" << content;
+
+  // Send packets of up to 1500 bytes
+  int long unsigned index = 0;
+  while (index < string.length() and result != -1) {
+    packet_payload_length =
+        string.length() - index > 1500 ? 1500 : string.length() - index;
+
+    if (log_level <= DEBUG)
+      std::cout << "OUT (socket " << socket << ") sending packet :\n"
+                << "index = " << index
+                << ", packet_payload_length = " << packet_payload_length
+                << "\n";
+
+    result = send(socket, &content[index], packet_payload_length, 0);
+
+    index += packet_payload_length;
+  }
+
+  if (result == -1 and log_level <= ERROR)
+    perror("send");
+
+  delete[] content; // free memory
+
+  return result;
 }
