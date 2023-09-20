@@ -508,6 +508,7 @@ int handle_incoming_request(client_connection &client) {
     return -1;
   }
 
+  // assume headers are all in the first packet
   response = parse_http_response_header(buffer);
 
   // while (await_request(client.open_server_socket))
@@ -585,7 +586,8 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
       // end of a word
 
       if (line == 0 && word == 1) {
-        response.status_code = std::string(buffer, index - start_of_word);
+        response.status_code =
+            std::string(buffer, start_of_word, index - start_of_word);
       }
       word++;
       start_of_word = index + 1;
