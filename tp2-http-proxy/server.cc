@@ -476,7 +476,7 @@ struct http_response {
   bool keep_alive;
   unsigned long int content_length;
   unsigned int body_start;
-  char (*body)[]; // declare body as pointer to char[]
+  char *body; // declare body as pointer to first element of char[]
 };
 
 int handle_incoming_request(client_connection &client) {
@@ -494,6 +494,7 @@ int handle_incoming_request(client_connection &client) {
 
   client.open_server_socket = open_client_socket(heading.hostname);
 
+  // TODO handle non-GET requests (error)
   // forward request, assume GET request
   send_string(client.open_server_socket,
               get_http_request_headers_string(heading));
@@ -511,11 +512,35 @@ int handle_incoming_request(client_connection &client) {
   // assume headers are all in the first packet
   response = parse_http_response_header(buffer);
 
+  response.body = new char[response.content_length]();
+  unsigned long int index = 0;
+  bool done{false};
+  unsigned int packet_payload_length{0};
+
+  while (index < response.content_length) {
+    if (await_response(client.open_server_socket) == 0) {
+      // timeout TODO
+      return -1;
+    }
+
+    packet_payload_length =
+        read_request(client.open_server_socket, response.body + index);
+
+    if (packet_payload_length == 0) {
+      // error
+      return -1;
+    }
+
+    index += packet_payload_length;
+  }
+
   // while (await_request(client.open_server_socket))
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << client.client_socket << ") " << heading.method
               << " " << heading.path << std::endl;
+
+  delete[] response.body;
 
   return 0;
 }
