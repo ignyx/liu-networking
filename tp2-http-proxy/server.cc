@@ -601,10 +601,6 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
     if (buffer[index] == ' ') {
       // end of a word
 
-      if (line == 0 && word == 1) {
-        response.status_code =
-            std::string(buffer, start_of_word, index - start_of_word);
-      }
       if (word == 0) {
         word++;
         start_of_word = index + 1;
@@ -629,6 +625,11 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
       current_header = empty_header;
 
     } else if (buffer[index] == '\n') {
+      if (line == 0 && word == 1) {
+        response.status_code =
+            std::string(buffer, start_of_word, index - start_of_word);
+      }
+
       if (word == 0 and line > 0) {
         // empty line => body starts on next line
         done = true;
