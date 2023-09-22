@@ -12,7 +12,8 @@ using namespace std;
 
 
 void searchinFile(string& text, const string& word1, const string& replaceWord1, const string& word2, const string& replaceWord2) {
-    int textLength = text.length();
+    string copie = text;
+    int textLength = copie.length();
     int maxLength = max(word1.length(), word2.length());
     int word1length = word1.length();
     int word2length = word2.length();
@@ -22,7 +23,7 @@ void searchinFile(string& text, const string& word1, const string& replaceWord1,
             if ((i+j)>textLength) {
                 break;
             } else {
-                if (text[i + j] != word1[j]) {
+                if (copie[i + j] != word1[j]) {
                     found1 = false;
                     break;
                 } 
@@ -33,7 +34,7 @@ void searchinFile(string& text, const string& word1, const string& replaceWord1,
             if ((i+k)>textLength) {
                 break;
             } else {
-                if (text[i + k] != word2[k]) {
+                if (copie[i + k] != word2[k]) {
                     found2 = false;
                     break;
                 } 
@@ -41,26 +42,30 @@ void searchinFile(string& text, const string& word1, const string& replaceWord1,
         }   
         if (found1) {
             //Replace a word : https://cplusplus.com/reference/string/string/replace/
-            if (text[i-1]=='/') {
+            if (copie[i-1]=='/') {
                 cout << "A faire" << endl;
-                //Change Content-Length Header (our length)
+                string lien="http://zebroid.ida.liu.se/fakenews/trolly.jpg";
+                lien_Lenght=lien.length()
                 //replace with our link to the photo of trolly
+                copie.replace(i-2, lien_length, lien);//pour remplacer aussi le ./
+                i=i+12;//car ./smiley.jpg est 12 caracteres
             } else {
-                text.replace(i, word1length, replaceWord1);
+                copie.replace(i, word1length, replaceWord1);
                 found1=true;
             }
         }
         if (found2) {//enlever memory si tout d'un coup
-            if (text[i-1]=='/'){
+            if (copie[i-1]=='/'){
                 break; //Don't replace if the word is the name of an image
             } else {
-                text.replace(i, word2length, replaceWord2); 
-                response.content_length+=1;
+                copie.replace(i, word2length, replaceWord2); 
                 found2=true;
             }
                 
         }
     }
+    response.content_length=copie.length();
+    text=copie;
 }
 
 int main() {
