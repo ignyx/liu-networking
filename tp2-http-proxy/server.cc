@@ -509,12 +509,18 @@ int handle_incoming_request(client_connection &client) {
 
   // handle first packet
   if (await_response(client.open_server_socket) == 0) {
-    // timeout TODO
+    if (log_level <= WARNING)
+      std::cout << "OUT(socket " << client.client_socket
+                << ") upstream server timed out" << std::endl;
     return -1;
+    // it's a trick, send no reply
   }
 
   bytes_in_first_packet = read_request(client.open_server_socket, buffer);
   if (!bytes_in_first_packet) {
+    if (log_level <= WARNING)
+      std::cout << "OUT(socket " << client.client_socket
+                << ") upstream server sent an empty reply" << std::endl;
     return -1;
   }
 
