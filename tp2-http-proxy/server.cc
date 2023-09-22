@@ -626,7 +626,7 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
       current_header = empty_header;
 
     } else if (buffer[index] == '\n') {
-      if (word == 0) {
+      if (word == 0 and line > 0) {
         // empty line => body starts on next line
         done = true;
         response.body_start = index + 1;
