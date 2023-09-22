@@ -603,7 +603,7 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
         response.status_code =
             std::string(buffer, start_of_word, index - start_of_word);
       }
-      if (line != 0 or word > 0)
+      if (line != 0 or word == 0)
         // for parsing status_code. Not the cleanest implementation
         word++;
       start_of_word = index + 1;
@@ -617,9 +617,10 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
       current_header.value =
           std::string(buffer, start_of_word, index - start_of_word);
 
-      if (current_header.name == "connection" &&
-          current_header.value == "keep-alive")
-        response.keep_alive = true;
+      if (current_header.name == "connection") {
+        to_lowercase(current_header.value);
+        response.keep_alive = current_header.value == "keep-alive";
+      }
       if (current_header.name == "content-length")
         response.content_length = stoi(current_header.value);
       response.headers.push_back(current_header);
