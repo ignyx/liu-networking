@@ -522,9 +522,10 @@ int handle_incoming_request(client_connection &client) {
 
   // TODO modify response
 
-  send_string(client.client_socket,
-              build_http_response_headers_string(response) +
-                  std::string(buffer, 0, response.content_length));
+  send_string(
+      client.client_socket,
+      build_http_response_headers_string(response) +
+          std::string(buffer, response.body_start, response.content_length));
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << client.client_socket << ") " << heading.method
