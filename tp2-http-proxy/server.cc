@@ -41,6 +41,7 @@ int handle_incoming_request(client_connection &client);
 std::string get_http_request_headers_string(http_request_heading heading);
 int send_string(int socket, std::string string);
 http_response parse_http_response_header(const char buffer[MAXDATASIZE]);
+int read_response_body(client_connection client, http_response response);
 
 enum Log_Level {
   DEBUG,
@@ -513,28 +514,9 @@ int handle_incoming_request(client_connection &client) {
   response = parse_http_response_header(buffer);
 
   response.body = new char[response.content_length]();
-  unsigned long int index = 0;
-  bool done{false};
-  unsigned int packet_payload_length{0};
-
-  while (index < response.content_length) {
-    if (await_response(client.open_server_socket) == 0) {
-      // timeout TODO
-      return -1;
-    }
-
-    packet_payload_length =
-        read_request(client.open_server_socket, response.body + index);
-
-    if (packet_payload_length == 0) {
-      // error
-      return -1;
-    }
-
-    index += packet_payload_length;
+  if (read_response_body(client, response) == -1) {
+    // TODO error
   }
-
-  // while (await_request(client.open_server_socket))
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << client.client_socket << ") " << heading.method
@@ -662,4 +644,29 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
   std::cout << std::flush;
 
   return response;
+}
+
+int read_response_body(client_connection client, http_response response) {
+  // assumes response.body already initialized
+  unsigned long int index = 0;
+  unsigned int packet_payload_length{0};
+
+  while (index < response.content_length) {
+    if (await_response(client.open_server_socket) == 0) {
+      // timeout TODO
+      return -1;
+    }
+
+    packet_payload_length =
+        read_request(client.open_server_socket, response.body + index);
+
+    if (packet_payload_length == 0) {
+      // error
+      return -1;
+    }
+
+    index += packet_payload_length;
+  }
+
+  return index;
 }
