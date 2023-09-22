@@ -47,6 +47,9 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]);
 int read_response_body(client_connection const &client, http_response &response,
                        unsigned long int index);
 std::string build_http_response_headers_string(http_response const &response);
+void replace_string_in_place(std::string &string, const std::string &search,
+                             const std::string &replace);
+void manipulate_response(http_response &response);
 
 enum Log_Level {
   DEBUG,
@@ -531,7 +534,7 @@ int handle_incoming_request(client_connection &client) {
     // TODO error
   }
 
-  // TODO modify response
+  manipulate_response(response);
 
   send_response(client.client_socket, response);
 
@@ -740,10 +743,11 @@ std::string build_http_response_headers_string(http_response const &response) {
   return header_string;
 }
 
-void replace_string_in_place(std::string &string, const std::string search,
+void replace_string_in_place(std::string &string, const std::string &search,
                              const std::string &replace) {
-  size_t position;
+  size_t position{0};
   while ((position = string.find(search, position)) != std::string::npos) {
+    std::cout << "FOUND" << std::endl;
     string.replace(position, search.length(), replace);
     position += replace.length();
   }
@@ -758,4 +762,20 @@ void manipulate_response(http_response &response) {
 
   if (!is_text)
     return;
+
+  std::string body_string = std::string(response.body, response.content_length);
+
+  // not perfectly optimized but ok
+  replace_string_in_place(body_string, "Smiley", "Trolly");
+  replace_string_in_place(body_string, "Stockholm", "Linköping");
+  // kinda hacky, avoids replacing Stockhoml in links
+  replace_string_in_place(body_string, "/Linköping", "/Stockholm");
+  replace_string_in_place(body_string, "smiley.jpg", "trolly.jpg");
+
+  delete[] response.body;
+  response.body = new char[body_string.length()];
+  strcpy(response.body,
+         body_string.c_str()); // vulnerable if null byte in string
+
+  response.content_length = body_string.length();
 }
