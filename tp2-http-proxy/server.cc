@@ -739,3 +739,14 @@ std::string build_http_response_headers_string(http_response const &response) {
 
   return header_string;
 }
+
+void manipulate_response(http_response &response) {
+  bool is_text;
+  for (http_header header : response.headers) {
+    if (header.name == "content-type" and header.value.find("text") == 0)
+      is_text = true;
+  }
+
+  if (!is_text)
+    return;
+}
