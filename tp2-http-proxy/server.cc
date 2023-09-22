@@ -249,7 +249,7 @@ void handle_incoming_connection(int socket) {
 
   while (!client_timed_out) {
     if (await_request(socket)) {
-      if (handle_incoming_request(client)) {
+      if (handle_incoming_request(client) == 0) {
         continue;
       } else {
         // POLLIN event + no bytes read means remote closed connection.
@@ -484,7 +484,7 @@ int handle_incoming_request(client_connection &client) {
   http_response response;
   unsigned int bytes_in_first_packet;
 
-  if (!read_request(client.client_socket, buffer)) {
+  if (read_request(client.client_socket, buffer) <= 0) {
     return -1;
   }
 
