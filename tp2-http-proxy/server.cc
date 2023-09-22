@@ -596,7 +596,9 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
         response.status_code =
             std::string(buffer, start_of_word, index - start_of_word);
       }
-      word++;
+      if (line != 0 or word > 0)
+        // for parsing status_code. Not the cleanest implementation
+        word++;
       start_of_word = index + 1;
 
     } else if (buffer[index] == ':' && current_header.name == "") {
