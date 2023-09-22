@@ -41,8 +41,9 @@ int handle_incoming_request(client_connection &client);
 std::string get_http_request_headers_string(http_request_heading heading);
 int send_string(int socket, std::string string);
 http_response parse_http_response_header(const char buffer[MAXDATASIZE]);
-int read_response_body(client_connection client, http_response response);
-std::string build_http_response_headers_string(http_response response);
+int read_response_body(client_connection const &client,
+                       http_response &response);
+std::string build_http_response_headers_string(http_response &response);
 
 enum Log_Level {
   DEBUG,
@@ -656,7 +657,8 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
   return response;
 }
 
-int read_response_body(client_connection client, http_response response) {
+int read_response_body(client_connection const &client,
+                       http_response &response) {
   // assumes response.body already initialized
   unsigned long int index = 0;
   unsigned int packet_payload_length{0};
@@ -681,7 +683,7 @@ int read_response_body(client_connection client, http_response response) {
   return index;
 }
 
-std::string build_http_response_headers_string(http_response response) {
+std::string build_http_response_headers_string(http_response &response) {
   std::string header_string{"HTTP/1.1 " + response.status_code + "\r\n"};
   for (http_header header : response.headers) {
     if (header.name != "content-length")
