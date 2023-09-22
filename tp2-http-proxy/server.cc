@@ -41,8 +41,8 @@ int handle_incoming_request(client_connection &client);
 std::string get_http_request_headers_string(http_request_heading heading);
 int send_string(int socket, std::string string);
 http_response parse_http_response_header(const char buffer[MAXDATASIZE]);
-int read_response_body(client_connection const &client,
-                       http_response &response);
+int read_response_body(client_connection const &client, http_response &response,
+                       unsigned long int index);
 std::string build_http_response_headers_string(http_response &response);
 
 enum Log_Level {
@@ -486,6 +486,7 @@ int handle_incoming_request(client_connection &client) {
   char buffer[MAXDATASIZE];
   http_request_heading heading;
   http_response response;
+  unsigned int bytes_in_first_packet;
 
   if (!read_request(client.client_socket, buffer)) {
     return -1;
@@ -508,7 +509,8 @@ int handle_incoming_request(client_connection &client) {
     return -1;
   }
 
-  if (!read_request(client.open_server_socket, buffer)) {
+  bytes_in_first_packet = read_request(client.open_server_socket, buffer);
+  if (!bytes_in_first_packet) {
     return -1;
   }
 
@@ -516,16 +518,20 @@ int handle_incoming_request(client_connection &client) {
   response = parse_http_response_header(buffer);
 
   response.body = new char[response.content_length]();
-  if (read_response_body(client, response) == -1) {
+  // copy body from first packet
+  memcpy(response.body, &buffer[response.body_start],
+         bytes_in_first_packet - response.body_start);
+  // read bytes from following packets
+  if (read_response_body(client, response,
+                         bytes_in_first_packet - response.body_start) == -1) {
     // TODO error
   }
 
   // TODO modify response
 
-  send_string(
-      client.client_socket,
-      build_http_response_headers_string(response) +
-          std::string(buffer, response.body_start, response.content_length));
+  send_string(client.client_socket,
+              build_http_response_headers_string(response) +
+                  std::string(response.body, 0, response.content_length));
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << client.client_socket << ") " << heading.method
@@ -659,10 +665,9 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
   return response;
 }
 
-int read_response_body(client_connection const &client,
-                       http_response &response) {
+int read_response_body(client_connection const &client, http_response &response,
+                       unsigned long int index) {
   // assumes response.body already initialized
-  unsigned long int index{0};
   unsigned int packet_payload_length{0};
 
   while (index < response.content_length) {
