@@ -662,7 +662,7 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
 int read_response_body(client_connection const &client,
                        http_response &response) {
   // assumes response.body already initialized
-  unsigned long int index = 0;
+  unsigned long int index{0};
   unsigned int packet_payload_length{0};
 
   while (index < response.content_length) {
