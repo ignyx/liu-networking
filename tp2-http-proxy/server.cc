@@ -534,7 +534,17 @@ int handle_incoming_request(client_connection &client) {
   // read bytes from following packets
   if (read_response_body(client, response,
                          bytes_in_first_packet - response.body_start) == -1) {
-    // TODO error
+    if (log_level <= WARNING)
+      std::cout << "OUT(socket " << client.client_socket
+                << ") error receiving packets from upstream server"
+                << std::endl;
+    response.status_code = "500 Bad Request";
+    char content[] = "Error receiving packets from upstream server\n";
+    response.body = content;
+    response.content_length = sizeof content;
+    http_header content_type{"Content-Type", "text/plain"};
+    response.headers.push_back(content_type);
+    return send_response(client.client_socket, response);
   }
 
   manipulate_response(response);
