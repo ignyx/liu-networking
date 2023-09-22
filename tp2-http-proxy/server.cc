@@ -652,7 +652,6 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
   bool done{false};
 
   while (!done and buffer[index] != '\0' and index < MAXDATASIZE) {
-    // TODO skip body
     if (log_level <= DEBUG)
       std::cout << buffer[index];
     if (buffer[index] == ' ') {
@@ -723,7 +722,6 @@ int read_response_body(client_connection const &client, http_response &response,
 
   while (index < response.content_length) {
     if (await_response(client.open_server_socket) == 0) {
-      // timeout TODO
       return -1;
     }
 
