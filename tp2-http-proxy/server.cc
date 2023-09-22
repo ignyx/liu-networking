@@ -740,6 +740,15 @@ std::string build_http_response_headers_string(http_response const &response) {
   return header_string;
 }
 
+void replace_string_in_place(std::string &string, const std::string search,
+                             const std::string &replace) {
+  size_t position;
+  while ((position = string.find(search, position)) != std::string::npos) {
+    string.replace(position, search.length(), replace);
+    position += replace.length();
+  }
+}
+
 void manipulate_response(http_response &response) {
   bool is_text;
   for (http_header header : response.headers) {
