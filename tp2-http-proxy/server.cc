@@ -42,6 +42,7 @@ std::string get_http_request_headers_string(http_request_heading heading);
 int send_string(int socket, std::string string);
 http_response parse_http_response_header(const char buffer[MAXDATASIZE]);
 int read_response_body(client_connection client, http_response response);
+std::string build_http_response_headers_string(http_response response);
 
 enum Log_Level {
   DEBUG,
@@ -518,6 +519,12 @@ int handle_incoming_request(client_connection &client) {
     // TODO error
   }
 
+  // TODO modify response
+
+  send_string(client.client_socket,
+              build_http_response_headers_string(response) +
+                  std::string(buffer, 0, response.content_length));
+
   if (log_level <= INFO)
     std::cout << "IN (socket " << client.client_socket << ") " << heading.method
               << " " << heading.path << std::endl;
@@ -671,4 +678,19 @@ int read_response_body(client_connection client, http_response response) {
   }
 
   return index;
+}
+
+std::string build_http_response_headers_string(http_response response) {
+  std::string header_string{"HTTP/1.1 " + response.status_code + "\r\n"};
+  for (http_header header : response.headers) {
+    if (header.name != "content-length")
+      // content-length header may not have been updated
+      header_string += header.name + ": " + header.value + "\r\n";
+  }
+  header_string +=
+      "Content-Length: " + std::to_string(response.content_length) + "\r\n";
+
+  header_string += "\r\n";
+
+  return header_string;
 }
