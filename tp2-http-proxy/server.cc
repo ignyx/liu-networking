@@ -39,11 +39,14 @@ void to_lowercase(std::string &string);
 int await_response(int socket, int timeout = 10000);
 int handle_incoming_request(client_connection &client);
 std::string get_http_request_headers_string(http_request_heading heading);
-int send_string(int socket, std::string string);
+int send_string(const int socket, std::string const &string);
+int send_response(const int socket, http_response const &response);
+int send_bytes(const int socket, const char bytes[],
+               const unsigned long int length);
 http_response parse_http_response_header(const char buffer[MAXDATASIZE]);
 int read_response_body(client_connection const &client, http_response &response,
                        unsigned long int index);
-std::string build_http_response_headers_string(http_response &response);
+std::string build_http_response_headers_string(http_response const &response);
 
 enum Log_Level {
   DEBUG,
@@ -427,7 +430,8 @@ int open_client_socket(std::string web_address) {
     inet_ntop(ip_addr->ai_family,
               get_in_addr((struct sockaddr *)ip_addr->ai_addr),
               server_ip_address, sizeof server_ip_address);
-    std::cout << "client: connecting to " << server_ip_address << std::endl;
+    std::cout << "OUT(socket " << client_socket << ") client: connecting to "
+              << server_ip_address << std::endl;
 
     if (connect(client_socket, ip_addr->ai_addr, ip_addr->ai_addrlen) == -1) {
       std::cout << "client connect ip: " << server_ip_address << std::endl;
@@ -529,9 +533,7 @@ int handle_incoming_request(client_connection &client) {
 
   // TODO modify response
 
-  send_string(client.client_socket,
-              build_http_response_headers_string(response) +
-                  std::string(response.body, 0, response.content_length));
+  send_response(client.client_socket, response);
 
   if (log_level <= INFO)
     std::cout << "IN (socket " << client.client_socket << ") " << heading.method
@@ -552,9 +554,8 @@ std::string get_http_request_headers_string(http_request_heading heading) {
   return request;
 }
 
-int send_string(int socket, std::string string) {
+int send_string(const int socket, std::string const &string) {
   int result;
-  int packet_payload_length;
 
   // convert string to char[]
   char *content = new char[string.length()];
@@ -564,11 +565,47 @@ int send_string(int socket, std::string string) {
   if (log_level <= DEBUG)
     std::cout << "OUT (socket " << socket << ") sending payload :\n" << content;
 
+  result = send_bytes(socket, content, string.length());
+
+  delete[] content; // free memory
+
+  return result;
+}
+
+int send_response(const int socket, http_response const &response) {
+  int result;
+  std::string headers = build_http_response_headers_string(response);
+
+  char *content = new char[headers.length() + response.content_length];
+
+  // copy headers to buffer
+  strcpy(content,
+         headers.c_str()); // vulnerable if null byte in string
+
+  // not optimized
+  memcpy(&content[headers.length()], response.body, response.content_length);
+
+  if (log_level <= DEBUG)
+    std::cout << "OUT (socket " << socket << ") sending headers :\n"
+              << headers << std::endl;
+
+  result =
+      send_bytes(socket, content, headers.length() + response.content_length);
+
+  delete[] content; // free memory
+
+  return result;
+}
+
+int send_bytes(const int socket, const char bytes[],
+               const unsigned long int length) {
+  int result;
+  int packet_payload_length;
+
   // Send packets of up to 1500 bytes
-  int long unsigned index = 0;
-  while (index < string.length() and result != -1) {
-    packet_payload_length =
-        string.length() - index > 1500 ? 1500 : string.length() - index;
+  int long unsigned index{0};
+  while (index < length and result != -1) {
+    packet_payload_length = length - index > 1500 ? 1500 : length - index;
 
     if (log_level <= DEBUG)
       std::cout << "OUT (socket " << socket << ") sending packet :\n"
@@ -576,15 +613,13 @@ int send_string(int socket, std::string string) {
                 << ", packet_payload_length = " << packet_payload_length
                 << "\n";
 
-    result = send(socket, &content[index], packet_payload_length, 0);
+    result = send(socket, &bytes[index], packet_payload_length, 0);
 
     index += packet_payload_length;
   }
 
   if (result == -1 and log_level <= ERROR)
     perror("send");
-
-  delete[] content; // free memory
 
   return result;
 }
@@ -690,7 +725,7 @@ int read_response_body(client_connection const &client, http_response &response,
   return index;
 }
 
-std::string build_http_response_headers_string(http_response &response) {
+std::string build_http_response_headers_string(http_response const &response) {
   std::string header_string{"HTTP/1.1 " + response.status_code + "\r\n"};
   for (http_header header : response.headers) {
     if (header.name != "content-length")
