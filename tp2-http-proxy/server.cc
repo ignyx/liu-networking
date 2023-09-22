@@ -273,16 +273,6 @@ void handle_incoming_connection(int socket) {
     }
   }
 
-  if (send(socket, "HTTP/1.1 200 OK\n\nhi!", 20, 0) == -1) {
-    if (log_level <= ERROR)
-      perror("send");
-  }
-
-  if (send(socket, "Hello dude !", 12, 0) == -1) {
-    if (log_level <= ERROR)
-      perror("send");
-  }
-
   if (log_level <= INFO)
     std::cout << "IN (socket " << socket << ") connection closed" << std::endl;
   close(socket);
