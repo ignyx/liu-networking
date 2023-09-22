@@ -299,7 +299,6 @@ http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
   static const http_header empty_header;
 
   while (buffer[index] != '\0' && index < MAXDATASIZE) {
-    // TODO skip body
     if (log_level <= DEBUG)
       std::cout << buffer[index];
     if (buffer[index] == ' ') {
@@ -501,11 +500,19 @@ int handle_incoming_request(client_connection &client) {
 
   heading = parse_http_request_header(buffer);
 
-  // Assume hostname is provided in Host header
+  if (heading.method != "GET") {
+    response.status_code = "400 Bad Request";
+    char content[] = "Proxy only supports GET requests.\n";
+    response.body = content;
+    response.content_length = sizeof content;
+    http_header content_type{"Content-Type", "text/plain"};
+    response.headers.push_back(content_type);
+    return send_response(client.client_socket, response);
+  }
 
+  // Assume hostname is provided in Host header
   client.open_server_socket = open_client_socket(heading.hostname);
 
-  // TODO handle non-GET requests (error)
   // forward request, assume GET request
   send_string(client.open_server_socket,
               get_http_request_headers_string(heading));
@@ -747,7 +754,6 @@ void replace_string_in_place(std::string &string, const std::string &search,
                              const std::string &replace) {
   size_t position{0};
   while ((position = string.find(search, position)) != std::string::npos) {
-    std::cout << "FOUND" << std::endl;
     string.replace(position, search.length(), replace);
     position += replace.length();
   }
