@@ -570,6 +570,8 @@ int handle_incoming_request(client_connection &client) {
 
   delete[] response.body;
 
+  close(client.open_server_socket);
+
   return 0;
 }
 
