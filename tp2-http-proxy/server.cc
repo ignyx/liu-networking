@@ -111,6 +111,7 @@ int main() {
   return 0;
 }
 
+// handler function for reaping child processes after the connection is closed
 void reap_dead_child_processes(int) {
   // errno is the error number sent by system calls or libraries
   // in this case it might be overwritten by waitpid()
@@ -127,6 +128,7 @@ void reap_dead_child_processes(int) {
   errno = saved_errno;
 }
 
+// get IP adress
 void *get_in_addr(struct sockaddr *socket_address) {
   if (socket_address->sa_family == AF_INET) {
     // IPv4
@@ -137,6 +139,7 @@ void *get_in_addr(struct sockaddr *socket_address) {
   }
 }
 
+// bind UNIX socket to host IP address
 void bind_socket_to_address(int &listening_socket) {
   struct addrinfo hints;
   struct addrinfo *server_info;
@@ -198,6 +201,7 @@ void bind_socket_to_address(int &listening_socket) {
   }
 }
 
+// Start listening for new connections host socket
 void listen_to_socket(int listening_socket) {
   if (listen(listening_socket, BACKLOG) == -1) {
     if (log_level <= ERROR)
@@ -206,6 +210,7 @@ void listen_to_socket(int listening_socket) {
   }
 }
 
+// cleanup child processes when finished
 void reap_child_process_on_end() {
   struct sigaction signal_action; // used to communicate with the kernel
 
@@ -242,6 +247,7 @@ struct client_connection {
   int open_server_socket;
 };
 
+// listen and proxy requests until connection times out
 void handle_incoming_connection(int socket) {
   client_connection client;
   client.client_socket = socket;
@@ -278,6 +284,7 @@ void handle_incoming_connection(int socket) {
   close(socket);
 }
 
+// parse HTTP request headers from data buffer
 http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
   int index{0};
   int line{0};
@@ -346,6 +353,7 @@ http_request_heading parse_http_request_header(const char buffer[MAXDATASIZE]) {
   return heading;
 }
 
+// wait until a request arrives or timeout
 int await_request(int socket) {
   struct pollfd file_descriptor[1];
   file_descriptor[0].fd = socket;
@@ -366,6 +374,7 @@ int await_request(int socket) {
   return poll_response;
 }
 
+// read data from one packet (or up to MAXDATASIZE bytes)
 int read_request(int socket, char buffer[MAXDATASIZE]) {
   int number_of_bytes;
 
@@ -383,6 +392,7 @@ int read_request(int socket, char buffer[MAXDATASIZE]) {
   return number_of_bytes;
 }
 
+// open a client connection to host server
 int open_client_socket(std::string web_address) {
   int client_socket;
   struct addrinfo hints;
@@ -442,6 +452,7 @@ int open_client_socket(std::string web_address) {
   return client_socket;
 }
 
+// convert a string to lowercase (in place)
 void to_lowercase(std::string &string) {
   for (unsigned int index; index < string.length(); index++) {
     if (isupper(string[index]))
@@ -449,6 +460,7 @@ void to_lowercase(std::string &string) {
   }
 }
 
+// wait for response packet or timeout
 int await_response(int socket, int timeout) {
   struct pollfd file_descriptor[1];
   file_descriptor[0].fd = socket;
@@ -478,6 +490,7 @@ struct http_response {
   char *body; // declare body as pointer to first element of char[]
 };
 
+// proxy one request, opening and closing one egress connection
 int handle_incoming_request(client_connection &client) {
   char buffer[MAXDATASIZE];
   http_request_heading heading;
@@ -560,6 +573,7 @@ int handle_incoming_request(client_connection &client) {
   return 0;
 }
 
+// build a string containing an HTTP request
 std::string get_http_request_headers_string(http_request_heading heading) {
   std::string request{"GET " + heading.path + " HTTP/1.1\r\n"};
   for (http_header header : heading.headers)
@@ -570,6 +584,7 @@ std::string get_http_request_headers_string(http_request_heading heading) {
   return request;
 }
 
+// convert a string to bytes and send them through a socket
 int send_string(const int socket, std::string const &string) {
   int result;
 
@@ -588,6 +603,7 @@ int send_string(const int socket, std::string const &string) {
   return result;
 }
 
+// send an HTTP response through a socket
 int send_response(const int socket, http_response const &response) {
   int result;
   std::string headers = build_http_response_headers_string(response);
@@ -613,6 +629,7 @@ int send_response(const int socket, http_response const &response) {
   return result;
 }
 
+// send bytes through a socket
 int send_bytes(const int socket, const char bytes[],
                const unsigned long int length) {
   int result;
@@ -640,6 +657,7 @@ int send_bytes(const int socket, const char bytes[],
   return result;
 }
 
+// parse HTTP response headers from a buffer
 http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
   int index{0};
   int line{0};
@@ -715,6 +733,7 @@ http_response parse_http_response_header(const char buffer[MAXDATASIZE]) {
   return response;
 }
 
+// read response body to pre-existing buffer of correct size
 int read_response_body(client_connection const &client, http_response &response,
                        unsigned long int index) {
   // assumes response.body already initialized
@@ -739,6 +758,7 @@ int read_response_body(client_connection const &client, http_response &response,
   return index;
 }
 
+// build a string containing an HTTP reponse
 std::string build_http_response_headers_string(http_response const &response) {
   std::string header_string{"HTTP/1.1 " + response.status_code + "\r\n"};
   for (http_header header : response.headers) {
@@ -754,6 +774,7 @@ std::string build_http_response_headers_string(http_response const &response) {
   return header_string;
 }
 
+// replace all occurences of a string by a string in another string (in place)
 void replace_string_in_place(std::string &string, const std::string &search,
                              const std::string &replace) {
   size_t position{0};
@@ -763,6 +784,7 @@ void replace_string_in_place(std::string &string, const std::string &search,
   }
 }
 
+// edit response body and headers according to assignment directives
 void manipulate_response(http_response &response) {
   bool is_text;
   for (http_header header : response.headers) {
@@ -778,7 +800,7 @@ void manipulate_response(http_response &response) {
   // not perfectly optimized but ok
   replace_string_in_place(body_string, "Smiley", "Trolly");
   replace_string_in_place(body_string, "Stockholm", "Linköping");
-  // kinda hacky, avoids replacing Stockhoml in links
+  // kinda hacky, avoids replacing Stockholm in links
   replace_string_in_place(body_string, "/Linköping", "/Stockholm");
   replace_string_in_place(body_string, "smiley.jpg", "trolly.jpg");
 
