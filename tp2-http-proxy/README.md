@@ -24,7 +24,7 @@ changing the `PORT` constant in `server.cc`.
 You can also change the log verbosity by updating the `log_level` constant.
 
 ```
-g++ -o proxy -Wall -Wextra -Wpedantic server.cc
+g++ -o proxy.out -Wall -Wextra -Wpedantic server.cc
 ./proxy
 ```
 
