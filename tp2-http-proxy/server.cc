@@ -58,7 +58,7 @@ enum Log_Level {
   ERROR // probably just crashes
 
 };
-static const Log_Level log_level = DEBUG;
+static const Log_Level log_level = INFO;
 
 int main() {
   int listening_socket;
@@ -432,8 +432,9 @@ int open_client_socket(std::string web_address) {
     inet_ntop(ip_addr->ai_family,
               get_in_addr((struct sockaddr *)ip_addr->ai_addr),
               server_ip_address, sizeof server_ip_address);
-    std::cout << "OUT(socket " << client_socket << ") client: connecting to "
-              << server_ip_address << std::endl;
+    if (log_level <= DEBUG)
+      std::cout << "OUT(socket " << client_socket << ") client: connecting to "
+                << server_ip_address << std::endl;
 
     if (connect(client_socket, ip_addr->ai_addr, ip_addr->ai_addrlen) == -1) {
       std::cout << "client connect ip: " << server_ip_address << std::endl;
