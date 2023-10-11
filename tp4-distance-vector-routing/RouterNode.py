@@ -64,9 +64,19 @@ class RouterNode():
         if (self.check_for_changes()):
             self.Update_others()
 
-    def checkForChanges(self):
-        updateNeighbours = False
+    def recalculateDistanceTable(self):
+        tableChanged = False
         # See and try to understand the bellmanFord function of the python example on github
+        for destination in range(self.sim.NUM_NODES):
+            minimum = INFINITY
+            for node in range(self.sim.NUM_NODES):
+                cost = self.costs[node] + self.distanceTable[node][destination]
+                if cost < minimum:
+                    minimum = cost
+                    tableChanged = True
+
+        if tableChanged:
+            self.updateNeighbours()
 
     # --------------------------------------------------
 
