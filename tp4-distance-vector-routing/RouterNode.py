@@ -57,9 +57,9 @@ class RouterNode():
 
     # --------------------------------------------------
 
-    def recvUpdate(self, pkt):
+    def recvUpdate(self, packet):
         # Update our distance table with latest from neighbour
-        self.distanceTable[pkt.sourceid] = pkt.mincost
+        self.distanceTable[packet.sourceid] = packet.mincost
         # We can use another function to see if other nodes have updated
         if (self.check_for_changes()):
             self.Update_others()
