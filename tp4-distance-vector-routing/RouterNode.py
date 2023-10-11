@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import GuiTextArea
-import RouterPacket
+from RouterPacket import RouterPacket
 import F
 from copy import deepcopy
 
@@ -74,13 +74,15 @@ class RouterNode():
         self.sim.toLayer2(pkt)
         # On gitHub, they didn't do any other thing on the java version
 
-    def Update_others(self):
+    def update_neighbours(self):
         newCosts = self.distanceTable[self.myID]
-        for i in range(self.sim.NUM_NODES):
-            if (i != self.myID):  # Don't send to ourself
-                # Id of the sender, if of the receiver, new cost
-                tmpPkt = RouterPacket.RouterPacket(self.myID, i, newCosts)
-                self.sendUpdate(tmpPkt)
+        for node in range(self.sim.NUM_NODES):
+            if (node != self.myID and self.costs[node] != INFINITY):
+                # Send only to neighbours
+                neighbour = node
+                # Id of the sender, id of the receiver, new cost
+                packet = RouterPacket(self.myID, neighbour, newCosts)
+                self.sendUpdate(packet)
 
     # --------------------------------------------------
     def printDistanceTable(self):
