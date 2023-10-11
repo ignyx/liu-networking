@@ -54,6 +54,8 @@ class RouterNode():
                     self.distanceTable[source][destination] = self.sim.INFINITY
 
         # Prevenir les autres (UpdateAll)
+        self.printDistanceTable()
+        self.updateNeighbours()
 
     # --------------------------------------------------
 
