@@ -71,8 +71,10 @@ class RouterNode():
                 cost = self.costs[node] + self.distanceTable[node][destination]
                 if cost < minimum:
                     minimum = cost
+                    minimumNode = node
             if minimum != self.distanceTable[self.myID][destination]:
                 self.distanceTable[self.myID][destination] = minimum
+                self.routeTable[destination] = minimumNode
                 tableChanged = True
 
         if tableChanged:
