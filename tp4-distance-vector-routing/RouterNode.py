@@ -2,8 +2,9 @@
 import GuiTextArea
 import RouterPacket
 import F
-import RouterSimulator
 from copy import deepcopy
+
+INFINITY = 999
 
 
 class RouterNode():
@@ -25,7 +26,7 @@ class RouterNode():
         # Put 0 everywhere (no route yet)
         self.routeTable = [0 for i in range(self.sim.NUM_NODES)]
         # We don't know anything yet so we set the cost of each node to infty
-        self.distanceTable = [[RouterSimulator.INFINITY]
+        self.distanceTable = [[INFINITY]
                               for i in range(self.sim.NUM_NODES)]
 
         self.myGUI = GuiTextArea.GuiTextArea(
