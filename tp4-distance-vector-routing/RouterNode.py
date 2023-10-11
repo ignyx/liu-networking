@@ -14,6 +14,7 @@ class RouterNode():
     costs = None
     routeTable = None  # Best known next-hop router for each destination node
     distanceTable = None
+    neighbours = None
 
     # Access simulator variables with:
     # self.sim.POISONREVERSE, self.sim.NUM_NODES, etc.
@@ -28,6 +29,8 @@ class RouterNode():
         # We don't know anything yet so we set the cost of each node to infty
         self.distanceTable = [[INFINITY for _ in range(self.sim.NUM_NODES)]
                               for _ in range(self.sim.NUM_NODES)]
+        # Initialize neighbours
+        self.neighbours = []
 
         self.myGUI = GuiTextArea.GuiTextArea(
             "  Output window for Router #" + str(ID) + "  ")
@@ -39,6 +42,9 @@ class RouterNode():
                 self.routeTable[i] = self.sim.INFINITY  # We can't go here
             else:
                 self.routeTable[i] = i
+                if self.costs[i] != 0:
+                    # neighbour
+                    self.neighbours.append(i)
 
         # Initialize distance table
         for destination in range(self.sim.NUM_NODES):
@@ -90,13 +96,10 @@ class RouterNode():
 
     def updateNeighbours(self):
         newCosts = self.distanceTable[self.myID]
-        for node in range(self.sim.NUM_NODES):
-            if (node != self.myID and self.costs[node] != INFINITY):
-                # Send only to neighbours
-                neighbour = node
-                # Id of the sender, id of the receiver, new cost
-                packet = RouterPacket(self.myID, neighbour, newCosts)
-                self.sendUpdate(packet)
+        for neighbour in self.neighbours:
+            # Id of the sender, id of the receiver, new cost
+            packet = RouterPacket(self.myID, neighbour, newCosts)
+            self.sendUpdate(packet)
 
     # --------------------------------------------------
     def printDistanceTable(self):
