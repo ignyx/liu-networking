@@ -64,17 +64,16 @@ class RouterNode():
         if (self.check_for_changes()):
             self.Update_others()
 
-    def check_for_changes(self):
+    def checkForChanges(self):
         updateNeighbours = False
         # See and try to understand the bellmanFord function of the python example on github
 
     # --------------------------------------------------
 
-    def sendUpdate(self, pkt):
-        self.sim.toLayer2(pkt)
-        # On gitHub, they didn't do any other thing on the java version
+    def sendUpdate(self, packet):
+        self.sim.toLayer2(packet)
 
-    def update_neighbours(self):
+    def updateNeighbours(self):
         newCosts = self.distanceTable[self.myID]
         for node in range(self.sim.NUM_NODES):
             if (node != self.myID and self.costs[node] != INFINITY):
