@@ -41,17 +41,17 @@ class RouterNode():
                 self.routeTable[i] = i
 
         # Initialize distance table
-        for x in range(self.sim.NUM_NODES):
-            for y in range(self.sim.NUM_NODES):
-                if (x == y):
-                    # distance from a thing to the same (de 1 à 1 par exemple)
-                    self.distanceTable[y][x] = 0
-                elif (y == self.myID):
-                    # distance between this node and node x
-                    self.distanceTable[self.myID][x] = self.costs[x]
+        for destination in range(self.sim.NUM_NODES):
+            for source in range(self.sim.NUM_NODES):
+                if (destination == source):
+                    # distance from this node to itself (de 1 à 1 par exemple)
+                    self.distanceTable[source][destination] = 0
+                elif (source == self.myID):
+                    # distance between this node and destination node
+                    self.distanceTable[self.myID][destination] = self.costs[destination]
                 else:
-                    # we don't know yet
-                    self.distanceTable[y][x] = self.sim.INFINITY
+                    # we don't know the distance yet
+                    self.distanceTable[source][destination] = self.sim.INFINITY
 
         # Prevenir les autres (UpdateAll)
 
