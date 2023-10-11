@@ -60,9 +60,7 @@ class RouterNode():
     def recvUpdate(self, packet):
         # Update our distance table with latest from neighbour
         self.distanceTable[packet.sourceid] = packet.mincost
-        # We can use another function to see if other nodes have updated
-        if (self.check_for_changes()):
-            self.Update_others()
+        self.recalculateDistanceTable()
 
     def recalculateDistanceTable(self):
         tableChanged = False
@@ -73,7 +71,9 @@ class RouterNode():
                 cost = self.costs[node] + self.distanceTable[node][destination]
                 if cost < minimum:
                     minimum = cost
-                    tableChanged = True
+            if minimum != self.distanceTable[self.myID][destination]:
+                self.distanceTable[self.myID][destination] = minimum
+                tableChanged = True
 
         if tableChanged:
             self.updateNeighbours()
