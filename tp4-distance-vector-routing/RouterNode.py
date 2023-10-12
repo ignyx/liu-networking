@@ -77,10 +77,14 @@ class RouterNode():
             if destination == self.myID:
                 continue
             for node in range(self.sim.NUM_NODES):
+                # print("iiiNode" + str(self.myID) + "dest" + str(destination) +
+                #       "min" + str(minimum) + "dist" + str(self.distanceTable[node][destination]) + "tonode" + str(node) + "cost" + str(self.costs))
                 cost = self.costs[node] + self.distanceTable[node][destination]
                 if cost < minimum and node != self.myID:
                     minimum = cost
                     minimumNode = node
+            # print("Node" + str(self.myID) + "lookingat" + str(destination) +
+            #       "min" + str(minimum) + "at" + str(minimumNode) + "cost" + str(self.costs))
             if minimum != self.distanceTable[self.myID][destination]:
                 self.distanceTable[self.myID][destination] = minimum
                 if minimumNode in self.neighbours:
