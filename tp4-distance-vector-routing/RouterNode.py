@@ -72,18 +72,21 @@ class RouterNode():
 
     def recalculateDistanceTable(self):
         tableChanged = False
-        # See and try to understand the bellmanFord function of the python example on github
         for destination in range(self.sim.NUM_NODES):
             minimum = INFINITY
+            if destination == self.myID:
+                continue
             for node in range(self.sim.NUM_NODES):
                 cost = self.costs[node] + self.distanceTable[node][destination]
-                if cost < minimum:
+                if cost < minimum and node != self.myID:
                     minimum = cost
                     minimumNode = node
             if minimum != self.distanceTable[self.myID][destination]:
                 self.distanceTable[self.myID][destination] = minimum
-                self.costs = self.distanceTable[self.myID]
-                self.routeTable[destination] = self.routeTable[minimumNode]
+                if minimumNode in self.neighbours:
+                    self.routeTable[destination] = minimumNode
+                else:
+                    self.routeTable[destination] = self.routeTable[minimumNode]
                 tableChanged = True
 
         if tableChanged:
