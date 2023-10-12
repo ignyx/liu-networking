@@ -100,8 +100,18 @@ class RouterNode():
     def updateNeighbours(self):
         newCosts = self.distanceTable[self.myID]
         for neighbour in self.neighbours:
+            newCostsCopy = newCosts[:]
+
+            if self.sim.POISONREVERSE:
+                for routeDestination in range(len(newCostsCopy)):
+                    if self.routeTable[routeDestination] == neighbour:
+                        newCostsCopy[routeDestination] = INFINITY
+                        # print("poisoning" + str(routeDestination) +
+                        # str(newCostsCopy))
+
+            # print("Node" + str(self.myID) + "poison" + str(newCostsCopy))
             # Id of the sender, id of the receiver, new cost
-            packet = RouterPacket(self.myID, neighbour, newCosts)
+            packet = RouterPacket(self.myID, neighbour, newCostsCopy)
             self.sendUpdate(packet)
 
     # --------------------------------------------------
