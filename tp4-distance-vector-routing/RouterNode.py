@@ -133,8 +133,11 @@ class RouterNode():
         self.myGUI.print("\n\n")
 
     # --------------------------------------------------
-    def updateLinkCost(self, dest, newcost):
-        pass
+    def updateLinkCost(self, destination, newcost):
+        print("Node " + str(self.myID) + "newcost" + str(newcost))
+        self.costs[destination] = newcost
+
+        self.recalculateDistanceTable()
 
 
 # They Created other functions :
