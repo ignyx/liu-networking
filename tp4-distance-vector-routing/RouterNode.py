@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import GuiTextArea
 from RouterPacket import RouterPacket
-import F
 from copy import deepcopy
 
 INFINITY = 999
