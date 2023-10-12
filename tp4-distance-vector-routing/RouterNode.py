@@ -123,9 +123,13 @@ class RouterNode():
 
         # Print costs and routes
         self.myGUI.println("Costs and routes:")
-        self.myGUI.print(" cost    |\t")
+        self.myGUI.print(" linkcost|\t")
         for i in range(self.sim.NUM_NODES):
             self.myGUI.print('\t' + str(self.costs[i]))
+        self.myGUI.print("\n")
+        self.myGUI.print(" cost    |\t")
+        for i in range(self.sim.NUM_NODES):
+            self.myGUI.print('\t' + str(self.distanceTable[self.myID][i]))
         self.myGUI.print("\n")
         self.myGUI.print(" route   |\t")
         for i in range(self.sim.NUM_NODES):
