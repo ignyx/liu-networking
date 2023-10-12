@@ -58,7 +58,6 @@ class RouterNode():
                     # we don't know the distance yet
                     self.distanceTable[source][destination] = self.sim.INFINITY
 
-        # Prevenir les autres (UpdateAll)
         self.printDistanceTable()
         self.updateNeighbours()
 
@@ -102,7 +101,7 @@ class RouterNode():
             newCostsCopy = newCosts[:]
 
             if self.sim.POISONREVERSE:
-                for routeDestination in range(len(newCostsCopy)):
+                for routeDestination in range(self.sim.NUM_NODES):
                     if self.routeTable[routeDestination] == neighbour:
                         newCostsCopy[routeDestination] = INFINITY
 
@@ -117,8 +116,6 @@ class RouterNode():
 
         # Print distances
         self.myGUI.println("Distancetable:")
-
-        # They uses a PrintTableStart() in the GitHub example : why ?
 
         for x in range(self.sim.NUM_NODES):
             self.myGUI.print(" Node" + str(x) + "    |\t\t")
@@ -148,12 +145,3 @@ class RouterNode():
         self.costs[destination] = newcost
 
         self.recalculateDistanceTable()
-
-
-# They Created other functions :
-# Calculate cheapest
-# broadcastUpdate
-
-# Print neighbordistance table
-# printourdistancetable
-# printheader
