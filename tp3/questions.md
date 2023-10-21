@@ -79,6 +79,12 @@ Consider connections 6 and 8. Connection 6 has ten times better RTT but only
 double the bandwidth ! If it were fair, ten times better RTT would translate to
 ten times better bandwidth.
 
+Now consider connections 2 and 6. They have similar RTT but 2,5 times
+throughput difference ! If it were fair we would observe similar throughput.
+
+Connections 3 and 4 are fair. Connections 2 and 5 are nearly fair
+(performance-wise).
+
 All connections are observed for the same amount of time but do not have the
 same data throughput or RTT.
 
